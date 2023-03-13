@@ -1,0 +1,1 @@
+module Tourney.Algebra where
