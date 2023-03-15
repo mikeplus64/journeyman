@@ -74,6 +74,7 @@ common shared
     , aeson
     , async
     , base          >=4.13.0.0 && <4.18.0.0.0
+    , algebraic-graphs
     , data-default
     , directory
     , filepath
@@ -81,23 +82,8 @@ common shared
     , lens
     , generic-lens
     , profunctors
-    , relude        >=1.0
-    , shower
     , time
     , with-utf8
-    , hakyll
-    , hakyll-images
-    , hakyll-sass
-    , shake
-    , JuicyPixels
-    , pandoc
-    , typed-process
-    , hip
-    , autodocodec
-    , autodocodec-yaml
-    , autodocodec-schema
-    , slick
-    , brick
     , linear
     , closed
     , finite-typelits
