@@ -1,0 +1,85 @@
+#+title: DSL Design Background
+
+* Takeaways and responses to literature relevant to DSL design
+** "Domain Specific Languages" by Martin Fowler (textbook)
+https://learning.oreilly.com/library/view/domain-specific-languages/9780132107549/
+
+- Much dedicated to the actual technical process of designing a DSL, which is
+  not that interesting/useful to me -- quite familiar with creating parsers and
+  DSLs already
+  + Parser generators, lexing, etc
+  + "Semantic model" <=> a semantic compilation of an AST, e
+- A common theme of abstractions on existing DSLs, such as what SCSS is to CSS,
+  is that they add macros or a higher layer of abstraction (e.g. CMake,
+  Automake)
+
+** "Design Guidelines for Domain Specific Languages"
+https://arxiv.org/pdf/1409.2378.pdf
+
+- Good, easy to follow list of guidelines
+
+Rough responses to each guideline so far:
+1. "Identify language uses early"
+   + Design and implementation of novel tournament structures, that maximise
+     various metrics (ranking precision, competitiveness, fairness, etc)
+2. "Ask questions"
+   + "Who is going to model in the DSL?" - Me/tournament organisers
+   + "Who is going to review the models?" - Me/TOs
+   + "When?" - End of year :)
+   + "Who is using the models for which purpose?"
+     - Me: Identify and analyse good tournament structures
+     - General TOs: Run novel tournament structures with real players
+3. "Make your language consistent." - Roger
+4. "Decide carefully whether to use graphical or textual realization"
+
+   Textual will be the primary format for this DSL, visualisation will be
+   possible (and helpful), but that will be as an artefact of the textual
+   representation
+
+5. "Compose existing languages where possible"
+6. "Reuse existing language definitions"
+7. "Reuse existing type systems"
+   5-7 Creates a lean towards implementing an eDSL, as that makes reusing
+   existing definitions, type systems, languages, the most straight-forward.
+
+* Literature relevant to tournament design
+** "Simulating competitiveness and precision in a tournament structure: a reaper tournament"
+https://link.springer.com/article/10.1007/s41870-019-00397-5
+- Measures stability progression as well, which measures whether the value of a
+  winning a node is greater than losing there - so losing is not an attractive
+  outcome to a player
+
+** "Double-Elimination Tournaments: Counting and Calculating"
+- Gives a compact representation of different SE/DE brackets
+  + Uses a compact representation of binary trees
+- Many useful statistical results
+
+** "The structure, efficacy, and manipulation of double-elimination tournaments"
+- Provides important link function result
+- Implementation in kuachi.gg site
+- Also used by challonge, unknown if they were directly inspired by this or not
+
+* Example DSLs
+** Mermaid
+- Modern visual graph/flowchart creation language
+- Has multiple different syntaxes for different flowchart types
+- Adopted by GitLab, GitHub, etc. in their markup languages
+- Implicit "variable" (nodes/labels) declarations a la GraphViz
+
+** CSS
+- Is used as an example of an external DSL often.
+- Learnt by many web designers without much programming knowledge
+- Silent error handling
+  + Syntactic errors ignored by browsers
+- Is quite complex; interaction between different element UI modes creates many
+  edge cases
+- Not particularly beloved. Cottage industry of tools that ultimately compile
+  into CSS (CSS-in-JS, SASS/SCSS), or abstract away the need for developers to
+  write CSS (CSS "frameworks" like Bootstrap, Bulma, etc.; arguably Tailwind
+  CSS...), or allow developers to write CSS but with "hygenic" classnames (CSS
+  modules)
+
+* Example eDSLs
+** Squeal (type-safe PostgreSQL embedding in Haskell)
+** Numpy
+- Extremely successful, mostly oriented towards numeric array programming

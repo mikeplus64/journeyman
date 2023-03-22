@@ -1,0 +1,17 @@
+#+title: Goals
+
+* Tournament formats that should be supported
+- Double elimination
+- "Seeded" double elimination
+- Single elimination
+- Round robin
+- Swiss
+- Reaper
+- Reaper SE
+- Reaper DE
+
+* Novel structures that should be supported
+- Sorting networks
+- Insertion sort (very similar to SE)
+- Bubble sort
+- Bitonic sorting https://en.wikipedia.org/wiki/Bitonic_sorter

@@ -1,13 +1,31 @@
 module Tourney.Algebra where
+import Data.Set (Set)
+import Data.Set qualified as Set
 
-newtype PlayerID = PlayerID Int
-newtype MatchID = MatchID Int
+type MatchID = (Int, Int)
 
-data Player
-  = LoserOf MatchId
-  | WinnerOf MatchId
-  | Seed Int
+data MatchPlayer
+  = Winner
+  | Loser
+  | High
+  | Low
 
 data T
-  = Match MatchID Player
-  | Connect T T
+  = Connect T MatchPlayer T
+  | Overlay T T
+  | Match MatchID
+  | Empty
+
+data Graph = Graph
+  { matches :: !(Set MatchID)
+  , round :: !Int
+  , focus :: T
+  }
+
+type Graphing a = ()
+
+round :: Graphing a -> Graphing a
+round = undefined
+
+match :: Graphing MatchID
+match = undefined

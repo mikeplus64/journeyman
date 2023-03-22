@@ -1,0 +1,72 @@
+#+title: TODO
+
+* DONE Create a rough plan of what tasks, in what order, should be achieved
+That is this document :)
+* DONE Create a list of tournament formats that should be supported
+* DONE Create a cited list of tournament formats that people are already running in the real world
+- SE, DE, round robin, swiss
+- Group stages with 4 person DE per group is used in some CSGO tournaments
+
+* Background reading
+** Literature summaries
+*** DONE Reaper
+*** DONE 7 DSL guidelines
+*** DONE Domain Specific Languages textbook by Martin Fowler
+*** DONE Double-Elimination Tournaments: Counting and Calculating
+*** DONE The structure, efficacy, and manipulation of double-elimination tournaments
+*** TODO The other DSL one
+** DONE Look at existing DSLs
+Mermaid, CSS, Squeal, Numpy, chosen as examples I'm quite familiar with - I
+don't feel like much needs to be written by me at this stage about them due to
+my exisitng familiarity.
+*** TODO Thesis-ready summarisation of existing DSLs
+
+* TODO Get rough approval for the list of tasks from supervisor
+
+* TODO eDSL stubs for graph creation
+Initial design should take roughly 1 week, and the design will evolve once
+actually implementing the interactive CLI around it.
+
+- Connect nodes in graph
+  + Connect graphs by a match filter (greatest score/winner usually)
+
+- Special edge kinds other than connections between matches
+  + Round time limit; if exceeded and matches are still pending, those players
+    forfeit that round (Achieved by a prompt to the TO rather than actually
+    executing a forfeit immediately)
+
+  + Stages between tournaments
+    + Connects two tournament graphs treating them as just two ranking functions
+      with no knowledge of what's going on underneath
+
+  + Max N participant cutoffs, with modes for tie-breaking:
+    + Include all members of the tied players that intersect with the top N
+    + Sub-tournament between tied players
+
+- Overlay tournaments
+  + An overlay of two or more tournaments needs a combining function to choose
+    how to interleave the rankings of each tournament. Examples:
+    - Simple interleave (1,2,1,2,1,2)
+    - Circle method RR scheduling
+    - Sort by some tuple (Score, GroupNo, LastStageRank)
+
+* TODO Interactive CLI to run a competition
+- Simple prompt where you input commands to advance the tournament.
+  The prompt only needs to list:
+  - PlayerID for each player in tournament
+  - MatchID for each _available_ match, where available means that the match has
+    exactly two players
+- Commands to support:
+  + *Result(MatchID, scores=[(PlayerID, score), (PlayerID, score)])*
+    - *Result(MatchID, winner=PlayerID, loser=PlayerID)*
+    Enter a result and advance the tournament accordingly
+  + *Forfeit(PlayerID)*
+    Forfeit this player given the current tournament state, and advance the
+    tournament accordingly
+  + *Swap(PlayerID, PlayerID)*
+    Swap one player for another.
+  + *Start*
+
+- Typed/schema'd (i.e., jsonschema/swagger) JSON interface for use elsewhere
+
+* TODO Support single-elimination
