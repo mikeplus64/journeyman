@@ -1,6 +1,6 @@
 #+title: TODO
 
-* DONE Create a rough plan of what tasks, in what order, should be achieved
+* STRT Create a rough plan of what tasks, in what order, should be achieved
 That is this document :)
 * DONE Create a list of tournament formats that should be supported
 * DONE Create a cited list of tournament formats that people are already running in the real world
@@ -70,3 +70,9 @@ actually implementing the interactive CLI around it.
 - Typed/schema'd (i.e., jsonschema/swagger) JSON interface for use elsewhere
 
 * TODO Support single-elimination
+
+* TODO Project website
+A place to organise the documentation for the project.
+- Link to thesis
+- Link to API documentation
+- Instructions for use for a technically-minded TO
