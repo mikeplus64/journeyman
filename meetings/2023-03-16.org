@@ -1,0 +1,42 @@
+# READING
+
+## Background reading
+- Create some summaries of the background reading
+- Create a record of what I've read and the summaries
+  + 7 criteria for a DSL etc
+- Get a copy of Domain Specific Languages,  Martin Fowler
+  + Decision between eDSL and DSL
+  + DSL for "domain experts"
+
+# Technical stuff
+
+- Reaper good
+- Analysis not very good
+- N-ary elimination
+- Where in the project looking at the properties of a given tournament fits?
+  + Contrast between creating tournaments, and analysis of them
+  + Options
+    - Property based testing - monte carlo simulation thing
+    - Symbolic maths closed form thing
+
+# TODO
+
+- Create a rough plan of what tasks in what order should be achieved
+- Need to have a formal list of what sorts of tournaments need to be supported
+  + N-ary elim
+  + Round robin
+  + Forfeits
+  + Cutoffs, *asymmetric* cut
+    - Tiebreakers
+    - Use seed value
+  + Minimum supported approaches for tournaments
+
+- Cite everything:
+  + https://kuachi.gg stuff where relevant?
+  + alga blog posts
+  + Create a cited list of tournaments that people are interested in running (or do run already) in the real world
+    - Sports tournaments
+      + FIFA
+      + Asymmetry of groups
+    - Ethics issues: probably nothing for public data
+      + Chess ranking
