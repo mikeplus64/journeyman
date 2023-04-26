@@ -21,16 +21,15 @@
       perSystem = { self', lib, config, pkgs, ... }: {
         # The "main" project. You can have multiple projects, but this template
         # has only one.
-        haskellProjects.main = {
-          packages = {
-            journeyman.root = ./.;
+        haskellProjects.default = {
+          overrides = self: super: {};
+          devShell = {
+            tools = hp: {
+              treefmt = config.treefmt.build.wrapper;
+            } // config.treefmt.build.programs;
+            hlsCheck.enable = false;
           };
-          buildTools = hp: {
-            treefmt = config.treefmt.build.wrapper;
-          } // config.treefmt.build.programs;
-          # overrides = self: super: {}
-          hlsCheck.enable = false;
-          hlintCheck.enable = true;
+          autoWire = [ "packages" "apps" "checks" ]; # Wire all but the devShell
         };
 
         # Auto formatters. This also adds a flake check to ensure that the
@@ -39,18 +38,10 @@
           inherit (config.flake-root) projectRootFile;
           package = pkgs.treefmt;
 
-          programs.ormolu.enable = true;
+          # programs.ormolu.enable = false
           programs.nixpkgs-fmt.enable = true;
           programs.cabal-fmt.enable = true;
-
-          # We use fourmolu
-          programs.ormolu.package = pkgs.haskellPackages.fourmolu;
-          settings.formatter.ormolu = {
-            options = [
-              "--ghc-opt"
-              "-XImportQualifiedPost"
-            ];
-          };
+          programs.hlint.enable = true;
         };
 
         # Dev shell scripts.
@@ -85,14 +76,16 @@
         };
 
         # Default package.
-        packages.default = self'.packages.main-journeyman-demo;
+        packages.default = pkgs.haskell.lib.justStaticExecutables self'.packages.journeyman;
 
         # Default shell.
-        devShells.default =
-          config.mission-control.installToDevShell self'.devShells.main;
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [
+            config.haskellProjects.default.outputs.devShell
+            config.flake-root.devShell
+            config.mission-control.devShell
+          ];
+        };
       };
-
-      # CI configuration
-      flake.herculesCI.ciSystems = [ "x86_64-linux" "aarch64-darwin" ];
     };
 }

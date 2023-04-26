@@ -13,7 +13,7 @@ That is this document :)
 *** DONE 7 DSL guidelines
 *** DONE Domain Specific Languages textbook by Martin Fowler
 *** DONE Double-Elimination Tournaments: Counting and Calculating
-*** DONE The structure, efficacy, and manipulation of double-elimination tournaments
+*** STRT The structure, efficacy, and manipulation of double-elimination tournaments
 *** TODO The other DSL one
 ** DONE Look at existing DSLs
 Mermaid, CSS, Squeal, Numpy, chosen as examples I'm quite familiar with - I
