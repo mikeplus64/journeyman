@@ -3,7 +3,6 @@ module Tourney.Result where
 import Control.Lens
 import Data.Generics.Labels ()
 import GHC.Generics (Generic)
-import Numeric.Natural
 
 data Origin = High | Low
   deriving stock (Show, Read, Eq, Ord, Generic)

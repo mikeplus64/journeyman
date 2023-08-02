@@ -18,6 +18,8 @@ import Data.Vector.Mutable qualified as VM
 import Data.Word
 import GHC.Generics (Generic)
 import Numeric.Natural
+
+import Data.Tuple.Ordered
 import Tourney.Result
 
 -- type MatchID = (RoundNo, Int)
@@ -32,7 +34,7 @@ import Tourney.Result
 -- data Ranker s = Round (Set (Swap s))
 
 data Ranker = Ranker
-  { rounds :: [(MatchType, [(Int, Int)])]
+  { rounds :: [(MatchType, Set (LowHigh Int))]
   }
 
 data MatchType
@@ -52,7 +54,7 @@ runRankerM runMatch Ranker {rounds} initialRanking = do
   ranking <- V.thaw initialRanking
   points <- V.thaw (V.replicate (V.length initialRanking) 0)
   forM rounds \(matchType, cmps) -> do
-    forM_ cmps \(ia, ib) -> do
+    forM_ cmps \(LowHigh_ ia ib) -> do
       a <- VM.read ranking ia
       b <- VM.read ranking ib
       result <- runMatch a b
@@ -74,7 +76,7 @@ runRankerM runMatch Ranker {rounds} initialRanking = do
                 V.fromListN
                   (V.length ranking')
                   ( sortOn
-                      (\(p, _) -> p)
+                      fst
                       ( zip
                           (V.toList points')
                           (V.toList ranking')
@@ -87,8 +89,8 @@ runRankerM runMatch Ranker {rounds} initialRanking = do
 --------------------------------------------------------------------------------
 
 -- | Creates a round-robin with n participants.
-roundRobin :: Int -> [(Int, Int)]
-roundRobin n = [(a, b) | a <- [0 .. n - 1], b <- [a + 1 .. n - 1]]
+roundRobin :: Int -> [LowHigh Int]
+roundRobin n = [LowHigh_ a b | a <- [0 .. n - 1], b <- [a + 1 .. n - 1]]
 
 isqrt, tri :: Int -> Int
 isqrt = floor . sqrt . (fromIntegral :: Int -> Double)
