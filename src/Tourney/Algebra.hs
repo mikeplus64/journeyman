@@ -6,7 +6,7 @@ import Control.Monad (forM, forM_, when)
 import Control.Monad.Primitive (PrimMonad)
 import Control.Monad.ST.Strict
 import Data.Generics.Labels ()
-import Data.IntSet
+import Data.IntSet (IntSet)
 import Data.List (sort, sortOn)
 import Data.Monoid
 import Data.Semigroup
@@ -16,11 +16,14 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Vector.Mutable qualified as VM
 import Data.Word
-import GHC.Generics (Generic)
+import Linear.V2
 import Numeric.Natural
+import PyF
 
 import Data.Tuple.Ordered
 import Tourney.Result
+
+type Player = Int
 
 -- type MatchID = (RoundNo, Int)
 
@@ -46,7 +49,7 @@ data MatchType
   deriving stock (Show, Read, Eq, Ord, Generic)
 
 runRankerM ::
-  PrimMonad m =>
+  (PrimMonad m) =>
   (a -> a -> m (MatchResult a)) ->
   Ranker ->
   Vector a ->
@@ -83,64 +86,58 @@ runRankerM runMatch Ranker {rounds, type_} initialRanking = do
     V.zip <$> V.freeze points <*> V.freeze ranking
 
 --------------------------------------------------------------------------------
---
 
-slaughterSeeding :: Word32 -> Set (LowHigh (Maybe Word32))
-slaughterSeeding 0 = Set.empty
-slaughterSeeding 1 = Set.singleton (LowHigh_ Nothing (Just 0))
-slaughterSeeding 2 = Set.singleton (LowHigh (Just 0) (Just 1))
-slaughterSeeding p = _
+data NetworkStep = NetworkStep
+  { matches :: Set (LowHigh Word32)
+  , type_ :: MatchType
+  }
+
+newtype Ranking a = Ranking {unRanking :: Word32 -> ([NetworkStep], a)}
+
+--------------------------------------------------------------------------------
+
+slaughterSeeding :: Word32 -> [LowHigh Word32]
+slaughterSeeding d | d <= 1 = [LowHigh_ 0 1]
+slaughterSeeding d = [LowHigh_ p (2 ^ d - p - 1) | hl <- slaughterSeeding (d - 1), p <- toList hl]
+
+slaughterSeedingFlat :: Word32 -> [Word32]
+slaughterSeedingFlat d | d <= 1 = [0, 1]
+slaughterSeedingFlat d =
+  alternate d1 (map (\p -> 2 ^ d - p - 1) d1)
   where
-    n :: Word32
-    n = 2 ^ (floor (logBase 2 (fromIntegral p :: Double)) :: Word32)
+    d1 = slaughterSeedingFlat (d - 1)
 
--- /// Create an array of matches between signup indices according to slaughter
--- /// seeding
--- pub fn slaughter_seeding(signups: u32) -> Vec<(Option<u32>, Option<u32>)> {
---     match signups {
---         0 => {
---             return vec![];
---         }
---         1 => {
---             return vec![(Some(0), None)];
---         }
---         2 => {
---             return vec![(Some(0), Some(1))];
---         }
---         _ => {}
---     };
---     let max_depth = (signups as f32).log2().ceil() as u32;
---     let winners = slaughter_seeding_flat(max_depth);
---     let mut r = Vec::new();
---     let check_signup = |i: u32| -> Option<u32> {
---         if i < signups {
---             Some(i)
---         } else {
---             None
---         }
---     };
---     for i in 0..(winners.len() / 2) {
---         let high = winners[i * 2].expect("no high seed index");
---         let low = winners[i * 2 + 1].expect("no low seed index");
---         r.push((check_signup(high), check_signup(low)));
---     }
---     r
--- }
+slaughterSeedingFlatInf :: [Word32]
+slaughterSeedingFlatInf =
+  0
+    : [ if l
+        then p
+        else 2 ^ d - p - 1
+      | d <- [1 ..]
+      , p <- take (2 ^ (d - 1)) slaughterSeedingFlatInf
+      , l <- [False, True]
+      ]
 
--- singleElim :: Int -> Ranker
--- singleElim log2n =
---   Ranker
---     { type_ = CompareAndSwap
---     , rounds =
---       [ Set.fromList
---       [
+alternate :: [a] -> [a] -> [a]
+alternate xs ys = concat (zipWith (\a b -> [a, b]) xs ys)
 
---       ]
---       | r <- [0..log2n]
---       ]
---     }
---   where
---     n = 2^log2n
+slaughterRec :: Word32 -> Word32 -> Word32
+slaughterRec 0 0 = 0
+slaughterRec 1 0 = 0
+slaughterRec 1 1 = 1
+slaughterRec d _ | d <= 1 = error "no"
+slaughterRec d i = case i `quotRem` 2 of
+  (i0, 0) -> slaughterRec (d - 1) i0
+  (i0, 1) -> 2 ^ d - 1 - slaughterRec (d - 1) i0
+  _ -> error "impossible"
+
+slaughterRecNoBranch :: Word32 -> Word32 -> Bool -> Word32
+slaughterRecNoBranch 0 0 _ = 0
+slaughterRecNoBranch 1 0 False = 0
+slaughterRecNoBranch 1 0 True = 1
+slaughterRecNoBranch d _ _ | d <= 1 = error "no"
+slaughterRecNoBranch d i False = slaughterRecNoBranch (d - 1) i1 (m == 1) where (i1, m) = quotRem i 2
+slaughterRecNoBranch d i True = 2 ^ d - 1 - slaughterRecNoBranch (d - 1) i1 (m == 1) where (i1, m) = quotRem i 2
 
 --------------------------------------------------------------------------------
 
