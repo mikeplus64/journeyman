@@ -1,0 +1,95 @@
+#+title: Sem2 Plan
+
+The marks are:
+- Report/thesis: 55%
+- Artefact: 35%
+- Presentation: 10%
+- Other: 0%
+
+The due dates are:
+- 27 October: Report and artefact
+- 20 October: Poster
+
+* Report (55%)
+DEADLINE: <2023-10-27 Fri>
+
+** TODO Introduction - rewrite of Lit Review introduction
+DEADLINE: <2023-07-24 Mon +9w>
+** TODO Simplified problem statement
+DEADLINE: <2023-07-24 Mon +9w>
+** TODO Prior art - reuse Lit Review
+DEADLINE: <2023-07-24 Mon +9w>
+** TODO Design and architecture of tool
+DEADLINE: <2023-07-24 Mon +10w>
+*** TODO DSL considerations
+DEADLINE: <2023-07-24 Mon +10w>
+*** TODO Use of fixed monad, non-det monads, alternatives
+DEADLINE: <2023-07-24 Mon +10w>
+*** TODO Justify low-level DSL choice instead of high-level linguistic DSL
+DEADLINE: <2023-07-24 Mon +10w>
+- Example program enabled by expressiveness of low-level DSL
+- Building high-level primitives like ~Groups~, ~RoundRobin~, etc. to support something like
+  #+BEGIN_CODE
+  Split(4, RoundRobin(5)) => Interleave => {
+    Top(4) => DoubleElimination;
+    Top(>4) => DoubleElimination;
+  }
+  #+END_CODE
+- Describing splits is difficult
+** TODO Example tournament structure: groups of round-robin into double-elimination
+DEADLINE: <2023-07-24 Mon +11w>
+** TODO Results
+DEADLINE: <2023-07-24 Mon +13w>
+*** TODO [#C] - of common tournament structures
+DEADLINE: <2023-07-24 Mon +11w>
+*** TODO [#C] - of Swiss-style variantions
+*** TODO [#C] - of sorting algorithms
+*** TODO [#C] - of compositions (sequential or parallel) the above
+*** TODO [#A] Analysis
+*** TODO Summary table of results
+*** TODO Recommendations
+** TODO Discussion
+DEADLINE: <2023-07-24 Mon +13w>
+- Possible future work
+- Software availability
+** TODO Conclusion
+DEADLINE: <2023-07-24 Mon +13w>
+- How was the problem statement resolved
+
+** TODO Submission
+DEADLINE: <2023-10-27 Fri>
+
+* Artefact (35%)
+DEADLINE: <2023-10-27 Fri>
+** TODO Base monad
+DEADLINE: <2023-07-24 Mon +5w>
+*** TODO Declare a match
+DEADLINE: <2023-07-24 Mon +5w>
+*** TODO Ask for future results
+DEADLINE: <2023-07-24 Mon +5w>
+** TODO Structures
+*** TODO Single elim
+DEADLINE: <2023-07-24 Mon +5w>
+**** DONE Slaughter seeding
+*** TODO Double elim
+DEADLINE: <2023-07-24 Mon +6w>
+*** TODO Round-robin
+DEADLINE: <2023-07-24 Mon +6w>
+*** TODO Groups of [substructure]
+DEADLINE: <2023-07-24 Mon +6w>
+*** TODO Compose of [substructure]
+DEADLINE: <2023-07-24 Mon +6w>
+** TODO Analyser
+DEADLINE: <2023-07-24 Mon +10w>
+*** TODO Measure fairness
+*** TODO Measure rounds taken
+*** TODO Measure ranking precision
+*** TODO Simulate and determine rank preservation
+DEADLINE: <2023-07-24 Mon +8w>
+
+* Presentation (10%)
+DEADLINE: <2023-10-20 Fri>
+** TODO Vis of tournaments as sorting networks
+** TODO Comparison of elimination visualised the normal way to it as a sorting network
+** TODO Snippet with comparison of
+** TODO Poster
