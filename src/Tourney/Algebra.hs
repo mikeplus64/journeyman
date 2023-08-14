@@ -1,24 +1,11 @@
 module Tourney.Algebra where
 
-import Algebra.Graph.Labelled qualified as G
 import Control.Lens
-import Control.Monad (forM, forM_, when)
 import Control.Monad.Primitive (PrimMonad)
-import Control.Monad.ST.Strict
 import Data.Generics.Labels ()
-import Data.IntSet (IntSet)
-import Data.List (sort, sortOn)
-import Data.Monoid
-import Data.Semigroup
-import Data.Set (Set)
-import Data.Set qualified as Set
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Vector.Mutable qualified as VM
-import Data.Word
-import Linear.V2
-import Numeric.Natural
-import PyF
 
 import Data.Tuple.Ordered
 import Tourney.Result
@@ -106,20 +93,43 @@ slaughterSeedingFlat d =
   alternate d1 (map (\p -> 2 ^ d - p - 1) d1)
   where
     d1 = slaughterSeedingFlat (d - 1)
+    alternate xs ys = concat (zipWith (\a b -> [a, b]) xs ys)
 
-slaughterSeedingFlatInf :: [Word32]
+data Bin = L | R
+
+slaughterSeedingInf :: [[LowHigh Natural]]
+slaughterSeedingInf = map pairs slaughterSeedingFlatInf
+  where
+    pairs :: [Natural] -> [LowHigh Natural]
+    pairs (a : b : xs) = LowHigh_ a b : pairs xs
+    pairs _ = []
+
+lfswap :: [a] -> [a]
+lfswap l = drop h l ++ take h l
+  where
+    h = length l `div` 2
+
+lfrev :: [a] -> [a]
+lfrev l = reverse (take h l) ++ reverse (drop h l)
+  where
+    h = length l `div` 2
+
+qq :: [a] -> [a]
+qq (x : xs) = xs ++ [x]
+qq [] = []
+
+slaughterSeedingFlatInf :: [[Natural]]
 slaughterSeedingFlatInf =
-  0
-    : [ if l
-        then p
-        else 2 ^ d - p - 1
-      | d <- [1 ..]
-      , p <- take (2 ^ (d - 1)) slaughterSeedingFlatInf
-      , l <- [False, True]
-      ]
+  [0] : do
+    (n, ps) <- zip pow2s slaughterSeedingFlatInf
+    pure do
+      p <- ps
+      [p, n - p - 1]
 
-alternate :: [a] -> [a] -> [a]
-alternate xs ys = concat (zipWith (\a b -> [a, b]) xs ys)
+pow2s :: [Natural]
+pow2s = (2 ^) <$> [1 :: Natural ..]
+
+ss x = ((sin (0.5 * pi * fromInteger x) + 1) / 2)
 
 slaughterRec :: Word32 -> Word32 -> Word32
 slaughterRec 0 0 = 0
