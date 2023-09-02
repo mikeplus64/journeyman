@@ -14,19 +14,19 @@ The due dates are:
 DEADLINE: <2023-10-27 Fri>
 
 ** TODO Introduction - rewrite of Lit Review introduction
-DEADLINE: <2023-07-24 Mon +9w>
+DEADLINE: <2023-09-25 Mon>
 ** TODO Simplified problem statement
-DEADLINE: <2023-07-24 Mon +9w>
+DEADLINE: <2023-09-25 Mon>
 ** TODO Prior art - reuse Lit Review
-DEADLINE: <2023-07-24 Mon +9w>
+DEADLINE: <2023-09-25 Mon>
 ** TODO Design and architecture of tool
-DEADLINE: <2023-07-24 Mon +10w>
+DEADLINE: <2023-10-02 Mon>
 *** TODO DSL considerations
-DEADLINE: <2023-07-24 Mon +10w>
+DEADLINE: <2023-10-02 Mon>
 *** TODO Use of fixed monad, non-det monads, alternatives
-DEADLINE: <2023-07-24 Mon +10w>
+DEADLINE: <2023-10-02 Mon>
 *** TODO Justify low-level DSL choice instead of high-level linguistic DSL
-DEADLINE: <2023-07-24 Mon +10w>
+DEADLINE: <2023-10-02 Mon>
 - Example program enabled by expressiveness of low-level DSL
 - Building high-level primitives like ~Groups~, ~RoundRobin~, etc. to support something like
   #+BEGIN_CODE
@@ -37,11 +37,11 @@ DEADLINE: <2023-07-24 Mon +10w>
   #+END_CODE
 - Describing splits is difficult
 ** TODO Example tournament structure: groups of round-robin into double-elimination
-DEADLINE: <2023-07-24 Mon +11w>
+DEADLINE: <2023-10-09 Mon>
 ** TODO Results
-DEADLINE: <2023-07-24 Mon +13w>
+DEADLINE: <2023-10-23 Mon>
 *** TODO [#C] - of common tournament structures
-DEADLINE: <2023-07-24 Mon +11w>
+DEADLINE: <2023-10-09 Mon>
 *** TODO [#C] - of Swiss-style variantions
 *** TODO [#C] - of sorting algorithms
 *** TODO [#C] - of compositions (sequential or parallel) the above
@@ -49,11 +49,11 @@ DEADLINE: <2023-07-24 Mon +11w>
 *** TODO Summary table of results
 *** TODO Recommendations
 ** TODO Discussion
-DEADLINE: <2023-07-24 Mon +13w>
+DEADLINE: <2023-10-23 Mon>
 - Possible future work
 - Software availability
 ** TODO Conclusion
-DEADLINE: <2023-07-24 Mon +13w>
+DEADLINE: <2023-10-23 Mon>
 - How was the problem statement resolved
 
 ** TODO Submission
@@ -62,30 +62,30 @@ DEADLINE: <2023-10-27 Fri>
 * Artefact (35%)
 DEADLINE: <2023-10-27 Fri>
 ** TODO Base monad
-DEADLINE: <2023-07-24 Mon +5w>
+DEADLINE: <2023-08-28 Mon>
 *** TODO Declare a match
-DEADLINE: <2023-07-24 Mon +5w>
+DEADLINE: <2023-08-28 Mon>
 *** TODO Ask for future results
-DEADLINE: <2023-07-24 Mon +5w>
+DEADLINE: <2023-08-28 Mon>
 ** TODO Structures
 *** TODO Single elim
-DEADLINE: <2023-07-24 Mon +5w>
+DEADLINE: <2023-08-28 Mon>
 **** DONE Slaughter seeding
 *** TODO Double elim
-DEADLINE: <2023-07-24 Mon +6w>
+DEADLINE: <2023-09-04 Mon>
 *** TODO Round-robin
-DEADLINE: <2023-07-24 Mon +6w>
+DEADLINE: <2023-09-04 Mon>
 *** TODO Groups of [substructure]
-DEADLINE: <2023-07-24 Mon +6w>
+DEADLINE: <2023-09-04 Mon>
 *** TODO Compose of [substructure]
-DEADLINE: <2023-07-24 Mon +6w>
+DEADLINE: <2023-09-04 Mon>
 ** TODO Analyser
-DEADLINE: <2023-07-24 Mon +10w>
+DEADLINE: <2023-10-02 Mon>
 *** TODO Measure fairness
 *** TODO Measure rounds taken
 *** TODO Measure ranking precision
 *** TODO Simulate and determine rank preservation
-DEADLINE: <2023-07-24 Mon +8w>
+DEADLINE: <2023-09-18 Mon>
 
 * Presentation (10%)
 DEADLINE: <2023-10-20 Fri>
