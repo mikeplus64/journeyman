@@ -63,6 +63,9 @@ DEADLINE: <2023-10-27 Fri>
 DEADLINE: <2023-10-27 Fri>
 ** TODO Base monad
 DEADLINE: <2023-08-28 Mon>
+:LOGBOOK:
+CLOCK: [2023-09-02 Sat 15:59]--[2023-09-02 Sat 17:28] =>  1:29
+:END:
 *** TODO Declare a match
 DEADLINE: <2023-08-28 Mon>
 *** TODO Ask for future results

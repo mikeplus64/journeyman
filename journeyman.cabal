@@ -86,6 +86,7 @@ common shared
     , effectful
     , filepath
     , finite-typelits
+    , free
     , generic-lens
     , lens
     , linear
@@ -110,6 +111,7 @@ library
     Data.Lens.Deferred
     Data.Tuple.Ordered
     Tourney.Algebra
+    Tourney.Monad
     Tourney.Result
 
 test-suite test

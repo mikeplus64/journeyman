@@ -35,12 +35,12 @@ data MatchType
     Points
   deriving stock (Show, Read, Eq, Ord, Generic)
 
-runRankerM ::
-  (PrimMonad m) =>
-  (a -> a -> m (MatchResult a)) ->
-  Ranker ->
-  Vector a ->
-  m [Vector (Integer, a)]
+runRankerM
+  :: (PrimMonad m)
+  => (a -> a -> m (MatchResult a))
+  -> Ranker
+  -> Vector a
+  -> m [Vector (Integer, a)]
 runRankerM runMatch Ranker {rounds, type_} initialRanking = do
   ranking <- V.thaw initialRanking
   points <- V.thaw (V.replicate (V.length initialRanking) 0)
