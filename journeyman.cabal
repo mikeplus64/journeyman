@@ -25,6 +25,7 @@ common shared
   default-extensions:
     NoFieldSelectors
     NoStarIsType
+    AllowAmbiguousTypes
     BangPatterns
     BlockArguments
     ConstraintKinds
@@ -110,9 +111,11 @@ library
     Control.Monad.State.Remembering
     Data.Lens.Deferred
     Data.Tuple.Ordered
-    Tourney.Algebra
+    Tourney.Format.DoubleElimination
+    Tourney.Format.SingleElimination
     Tourney.Monad
     Tourney.Result
+    Tourney.SortingNetwork
 
 test-suite test
   import:             shared
