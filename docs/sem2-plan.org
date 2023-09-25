@@ -63,29 +63,33 @@ DEADLINE: <2023-10-27 Fri>
 DEADLINE: <2023-10-27 Fri>
 ** TODO Base monad
 DEADLINE: <2023-08-28 Mon>
-*** TODO Declare a match
+*** DONE Declare a match
 DEADLINE: <2023-08-28 Mon>
-*** TODO Ask for future results
+*** DONE Ask for future results
 DEADLINE: <2023-08-28 Mon>
 ** TODO Structures
-*** TODO Single elim
+*** DONE Single elim
 DEADLINE: <2023-08-28 Mon>
 **** DONE Slaughter seeding
-*** TODO Double elim
+*** STRT Double elim
 DEADLINE: <2023-09-04 Mon>
-*** TODO Round-robin
+*** STRT Round-robin
 DEADLINE: <2023-09-04 Mon>
-*** TODO Groups of [substructure]
+*** STRT Groups of [substructure]
 DEADLINE: <2023-09-04 Mon>
-*** TODO Compose of [substructure]
+*** STRT Compose of [substructure]
 DEADLINE: <2023-09-04 Mon>
+
 ** TODO Analyser
 DEADLINE: <2023-10-02 Mon>
 *** TODO Measure fairness
 *** TODO Measure rounds taken
 *** TODO Measure ranking precision
-*** TODO Simulate and determine rank preservation
+*** STRT Simulate and determine rank preservation
 DEADLINE: <2023-09-18 Mon>
+**** DONE Conversion to sorting network
+**** TODO Conversion from sorting network
+**** TODO Algebra of sorting networks
 
 * Presentation (10%)
 DEADLINE: <2023-10-20 Fri>
