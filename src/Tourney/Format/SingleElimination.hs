@@ -2,8 +2,8 @@ module Tourney.Format.SingleElimination where
 
 import Data.Bits
 import Data.Tuple.Ordered
-import Tourney.Algebra
 import Tourney.Monad
+import Tourney.SortingNetwork
 
 singleElimination :: forall s. HasDep 'PlayerCount s => TourneyM s ()
 singleElimination = step Swaps do

@@ -79,10 +79,11 @@ common shared
     , aeson
     , algebraic-graphs
     , async
-    , base              >=4.13.0.0 && <4.18.0.0.0
+    , base               >=4.13.0.0 && <4.18.0.0.0
     , closed
     , containers
     , data-default
+    , data-fix
     , directory
     , effectful
     , filepath
@@ -95,6 +96,7 @@ common shared
     , primitive
     , profunctors
     , PyF
+    , recursion-schemes
     , relude
     , time
     , vector
@@ -111,6 +113,7 @@ library
     Control.Monad.State.Remembering
     Data.Lens.Deferred
     Data.Tuple.Ordered
+    Tourney.Algebra
     Tourney.Format.DoubleElimination
     Tourney.Format.SingleElimination
     Tourney.Monad

@@ -73,6 +73,12 @@ delay :: Int -> TourneyM s () -> TourneyM s ()
 delay n t | n > 0 = step Swaps (pure (delay (n - 1) t))
 delay _ t = t
 
+interleave :: TourneyM s () -> TourneyM s () -> TourneyM s ()
+interleave (TourneyStepF m0 top) (TourneyStepF m1 bot) =
+  TourneyStepF m0 (top <&> \t -> TourneyStepF m1 (bot <&> interleave t))
+interleave (Pure _) t = t
+interleave _ t = t
+
 leftover
   :: HasDep 'PlayerCount s
   => StepM s (Set (LowHigh Int))
@@ -114,18 +120,20 @@ matchBestWorst = do
 
 --------------------------------------------------------------------------------
 
---------------------------------------------------------------------------------
-
 data StaticInfo = StaticInfo {playerCount :: Int}
   deriving stock (Show, Read, Eq, Ord, Generic)
 
 instance HasDep 'PlayerCount StaticInfo where
   getDep _ = view #playerCount
 
-createStaticRounds :: s -> TourneyM s () -> Int -> [Round]
-createStaticRounds s t n = case unTourneyM t of
+createStaticRounds
+  :: s
+  -> TourneyM s ()
+  -> [Round]
+createStaticRounds s t = case unTourneyM t of
   Free (TourneyStep type_ (StepM runStep)) ->
-    Round {type_, matches} : createStaticRounds s t1 n
+    Round {type_, matches}
+      : createStaticRounds s t1
     where
       (matches, t1) = case runStep s mempty of
         (Left _err, ms) -> (ms, Pure ())
