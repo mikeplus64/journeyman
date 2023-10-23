@@ -1,192 +1,198 @@
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Tourney.Algebra where
 
 import Control.Lens
-
-import Control.Monad.Free
-
--- import Control.Monad.Trans.Free
-import Control.Monad.Writer.Strict
-import Data.Bits
-import Data.Default
-import Data.Fix
-import Data.Functor.Foldable
-import Data.Functor.Foldable.TH
-import Data.Generics.Labels ()
 import Data.Tuple.Ordered
-import Data.Vector (Vector)
-import Data.Vector qualified as V
-import Prelude hiding (round)
+import Tourney.Algebra.Types
 
-type Player = Int
+-- import BasePrelude (showsPrec)
+-- import Control.Lens hiding (Const)
+-- import Control.Monad.Reader
+-- import Control.Monad.Writer.Strict
+-- import Data.Bits
+-- import Data.Counting
+-- import Data.List ((!!))
+-- import Data.These
+-- import Data.Tuple.Ordered
+-- import Data.Typeable (typeRep)
+-- import Data.Vector (Vector)
+-- import Data.Vector qualified as V
+-- import Prelude hiding (Const, round)
 
-type Match = LowHigh Player
+-- type Player = Int
 
-type PlayerCount = Int
+-- type Match = LowHigh Player
 
-type RoundNo = Int
+-- type PlayerCount = Int
 
-data Action
-  = Swap
-  | Score ((Int, Int) -> [Int])
+-- type RoundNo = Int
 
-data Focus = Focus
-  { start :: Int
-  , length :: Int
-  }
+-- data Action
+--   = Swap
+--   | Score
+--   deriving stock (Eq, Ord, Show)
 
-data Step
-  = Pattern (PlayerCount -> Focus) Step
-  | Overlay Step Step
-  | Match Match
-  | EmptyS
-
-data Round
-  = Dynamic (Vector Player -> Round)
-  | Static Step
-
-makeBaseFunctor ''Step
-
-mapRound :: (Step -> Step) -> Round -> Round
-mapRound f (Static a) = Static (f a)
-mapRound f (Dynamic dyn) = Dynamic (fmap (mapRound f) dyn)
-
-foldMapRound :: (Step -> Round) -> Round -> Round
-foldMapRound f (Static a) = f a
-foldMapRound f (Dynamic dyn) = Dynamic (foldMapRound f . dyn)
-
-newtype Steps a = Steps ([Round], a)
-  deriving newtype (Functor, Applicative, Monad)
-
--- ([Round], a)
--- == forall r. ([Round] -> a -> r) -> r
--- == forall r. (forall x. (Round -> x -> x) -> x -> a -> r) -> r
-
--- newtype Steps a = Steps
---   { runSteps :: [Seeding Step]
+-- data FocusPattern = FocusPattern
+--   { start :: Int
+--   , length :: Int
 --   }
---   deriving (Functor, Applicative, Monad) via ([] `Compose` (,) Round)
 
--- newtype CompiledSteps = CompiledSteps (Fix (StepDelineation `Compose` (,) Step))
+-- type Rounds = Counting [Step]
 
--- cons :: Step -> CompiledSteps -> CompiledSteps
--- cons x (CompiledSteps xs) = CompiledSteps (Fix (Compose (Static (x, xs))))
+-- newtype Steps a = Steps (PlayerCount -> Rounds -> (a, Rounds))
+--   deriving
+--     (Functor, Applicative, Monad, MonadReader PlayerCount)
+--     via (ReaderT PlayerCount (State Rounds))
 
--- compiledStepsFromList :: [Step] -> CompiledSteps
--- compiledStepsFromList =
---   CompiledSteps . unfoldFix \case
---     x : xs -> Compose (Static (x, xs))
---     [] -> Compose Done
+-- instance MonadState [Step] Steps where
+--   get = Steps \_ r@(Counting _ s) -> (s, r)
+--   put a = Steps \_ _ -> ((), counting a)
 
--- compile :: Steps () -> CompiledSteps
--- compile (Steps sf) = case sf of
---   Pure _ -> CompiledSteps (Fix (Compose Done))
---   Free (Compose sd) -> CompiledSteps . Fix . Compose $ case sd of
---     Dynamic dyn -> undefined
---     Static (Compose stats) -> undefined
--- Done -> Done
+-- data a ~> b
+--   = Fn (a -> b)
+--   | Const b
+--   deriving stock (Functor)
 
--- data Steps a
---   = Then (Steps a) (Fix StepF)
---   | Dynamic (Vector Player -> RoundNo -> Steps a)
+-- run :: (a ~> b) -> a -> b
+-- run (Fn f) a = f a
+-- run (Const b) _ = b
 
--- compileStep :: Step a -> [Fix StepF]
--- compileStep (Step (FreeT fs)) = do
---   f <- fs
---   case f of
---     Free s -> case fmap (compileStep . Step) s of
---       PatternF pat a -> Fix . PatternF pat <$> a
---       DynamicF f -> _
---       ZipF a b -> _
---       MatchF m -> _
---       EmptyF -> _
---     Pure _ -> []
+-- instance (Typeable a, Typeable b) => Show (a ~> b) where
+--   showsPrec p _ = showsPrec p (typeRep (Proxy :: Proxy (a -> b)))
 
--- instance Semigroup (Step a) where
---   Step a <> Step b = Step (a <> b)
+-- data Step
+--   = Pattern (PlayerCount ~> FocusPattern) Step
+--   | ByScores (Vector Player ~> Step)
+--   | WithSortMethod Action Step
+--   | Overlay (Vector Step)
+--   | Negate Step
+--   | Match Match
+--   | E
+--   deriving stock (Show)
 
--- instance Monoid (Step a) where
---   mempty = Step mempty
+-- newtype CompiledSteps = CompiledSteps (Vector (Vector Step))
 
--- pattern FF1 :: f (FreeT f [] a) -> FreeT f [] a
--- pattern FF1 a = FreeT [Free a]
+-- narrow :: Int -> Step -> Step
+-- narrow n = Pattern (Fn \pc -> FocusPattern {start = 0, length = pc `quot` n})
 
--- pattern Pattern1 :: (PlayerCount -> Focus) -> Step a -> Step a
--- pattern Pattern1 f s <- Step (FF1 (PatternF f (coerce -> s)))
+-- tiled :: Int -> Step -> Step
+-- tiled n = Pattern (Const FocusPattern {start = 0, length = n})
+
+-- interleave :: [Steps a] -> Steps [a]
+-- interleave = foldr (\l r -> uncurry (:) <$> interleave2 l r) (pure mempty)
+
+-- interleave_ :: [Steps ()] -> Steps ()
+-- interleave_ = foldr (\l r -> void (interleave2 l r)) (pure ())
+
+-- interleave2 :: Steps a -> Steps b -> Steps (a, b)
+-- interleave2 (Steps fa) (Steps fb) = Steps \pc rounds ->
+--   let (a, sa) = fa pc rounds
+--       (b, sb) = fb pc rounds
+--    in ((a, b), alignCounting combine sa sb)
 --   where
---     Pattern1 f s = Step (FF1 (PatternF f (coerce s)))
+--     combine (These l r) = overlay2 l r
+--     combine (This l) = l
+--     combine (That r) = r
 
--- pattern Dynamic1 :: (RoundNo -> Focus -> Vector Player -> Step a) -> Step a
--- pattern Dynamic1 f <- Step (FF1 (DynamicF (coerce -> f)))
+-- interleave2_, (*|*) :: Steps () -> Steps () -> Steps ()
+-- interleave2_ l r = void (interleave2 l r)
+-- (*|*) = interleave2_
+
+-- delay :: Int -> Steps a -> Steps a
+-- delay rounds s = do
+--   replicateM_ rounds (step ())
+--   s
+
+-- concatMapSteps :: (Step -> Steps b) -> Steps a -> Steps (a, [b])
+-- concatMapSteps f (Steps s) = Steps \pc rounds ->
+--   let (a, Counting _ sa) = s pc rounds
+--       Steps next = mapM f sa
+--    in next pc mempty & _1 %~ (,) a
+
+-- modifySteps :: (Step -> Steps ()) -> Steps ()
+-- modifySteps f = Steps \pc (Counting _ rounds) ->
+--   let Steps next = mapM_ f rounds
+--    in next pc mempty
+
+-- overlay :: [Step] -> Step
+-- overlay steps =
+--   asOverlay do
+--     s <- V.fromList steps
+--     case s of
+--       Overlay o -> o
+--       E -> V.empty
+--       a -> V.singleton a
 --   where
---     Dynamic1 f = Step (FF1 (DynamicF (coerce f)))
+--     asOverlay v = case V.length v of
+--       0 -> E
+--       1 -> V.head v
+--       _ -> Overlay v
 
--- -- pattern Overlay1 :: Vector (Step a) -> Step a
--- -- pattern Overlay1 v <- Step (FF1 (OverlayF (coerce -> v)))
--- --   where
--- --     Overlay1 v = Step (FF1 (OverlayF (coerce v)))
+-- overlay2, (|+|) :: Step -> Step -> Step
+-- overlay2 E a = a
+-- overlay2 a E = a
+-- overlay2 l r = Overlay (V.fromListN 2 [l, r])
+-- (|+|) = overlay2
 
--- -- pattern OverlayL1 :: [Step a] -> Step a
--- -- pattern OverlayL1 v <- Step (FF1 (OverlayF (coerce . V.toList -> v)))
--- --   where
--- --     OverlayL1 v = Step (FF1 (OverlayF (coerce (V.fromList v))))
+-- class AsSteps s where
+--   step :: AsSteps s => s -> Steps ()
+--   step = stepMany . one
 
--- pattern Match1 :: LowHigh Player -> Step a
--- pattern Match1 v = Step (FF1 (MatchF v))
+--   stepMany :: AsSteps s => [s] -> Steps ()
+--   stepMany = mapM_ step
 
--- pattern Empty1 :: Step a
--- pattern Empty1 = Step (FF1 EmptyF)
+-- instance AsSteps () where
+--   step _ = step E
 
--- -- data TournamentBuilderState = TournamentBuilderState
--- --   { rounds :: [(Action, Step ())]
--- --   }
--- --   deriving stock (Generic)
+-- instance AsSteps a => AsSteps [a] where
+--   step = stepMany @a
 
--- newtype TournamentBuilder a
---   = TB [((Action, [Free StepF ()]), a)]
---   deriving (Functor, Applicative, Monad) via (Compose [] ((,) (Action, Step ())))
+-- instance AsSteps Step where
+--   step s = modify' (<> one s)
+--   stepMany s = modify' (<> one (overlay s))
 
--- matches :: [Match] -> Step ()
--- matches = overlay >=> Match1
+-- instance AsSteps Match where
+--   step = step . Match
+--   stepMany = stepMany . map Match
 
--- instance Semigroup (TournamentBuilder a) where
---   TB (StateT f) <> TB (StateT g) = TB $ StateT \s ->
---     let x = f s
---         y = g s
---      in x ++ y
+-- instance (a ~ Int, b ~ Int) => AsSteps (a, b) where
+--   -- claim an instance over all pairs, but then constrain the valid elements of
+--   -- them to Player
+--   step = step . Match . uncurry LowHigh_
+--   stepMany = stepMany . map (Match . uncurry LowHigh_)
 
--- class MonadList m where
---   list :: [a] -> m a
+-- singleElimination :: Steps ()
+-- singleElimination = do
+--   players <- ask
+--   let depth = bitLog2 (nearestPow2Above players)
+--   step (slaughterSeeding !! depth)
+--   sequence_ do
+--     round <- [1 .. depth]
+--     pure (step (stride2 <$> fromPow2 round))
 
--- overlay :: [a] -> Step a
--- overlay = Step . lift
+-- doubleElimination :: Steps ()
+-- doubleElimination = do
+--   depth <- asks (bitLog2 . nearestPow2Above)
+--   singleElimination
+--   modifySteps \singleElimStage -> do
+--     step singleElimStage
 
--- --------------------------------------------------------------------------------
+-- slaughterSeeding :: [[Match]]
+-- slaughterSeeding =
+--   map snd (iterate next (2 :: Word32, [LowHigh_ 0 1]))
+--   where
+--     next :: (Word32, [Match]) -> (Word32, [Match])
+--     next (!d, matches) = (d + 1,) do
+--       p <- toList =<< matches
+--       [LowHigh_ p (2 ^ d - p - 1)]
 
--- -- singleElimination :: PlayerCount -> TournamentBuilder ()
--- -- singleElimination count =
--- --   firstRound <> subsequentRounds
--- --   where
--- --     firstRound = step (matches (slaughterSeeding depth))
--- --     subsequentRounds = do
--- --       round <- list [1 .. depth]
--- --       step do
--- --         i <- list (reverse [0 .. 2 ^ (round - 1)])
--- --         Match1 (LowHigh_ (2 * i) (2 * i + 1))
--- --     n = bitCeiling count
--- --     depth = bitLog2 n
+slaughterSeeding :: [[Match]]
+slaughterSeeding = [LowHigh_ 0 1] : imap next slaughterSeeding2
+  where
+    next d a = [LowHigh_ p (2 ^ (d + 2) - p - 1) | p <- toList =<< a]
 
--- slaughterSeeding :: Int -> [Match]
--- slaughterSeeding n | n <= 0 = []
--- slaughterSeeding 1 = [LowHigh_ 0 1]
--- slaughterSeeding d = [LowHigh_ p (2 ^ d - p - 1) | hl <- slaughterSeeding (d - 1), p <- toList hl]
-
--- bitCeiling :: Int -> Int
--- bitCeiling n =
---   if popCount n == 1
---     then n
---     else bit (bitLog2 n + 1)
-
--- bitLog2 :: Int -> Int
--- bitLog2 n = finiteBitSize n - countLeadingZeros n - 1
+-- next (!d, matches) = (d + 1,) do
+--   p <- toList =<< matches
+--   [LowHigh_ p (2 ^ d - p - 1)]
