@@ -8,30 +8,17 @@ import Data.Vector qualified as V
 import Data.Vector.Mutable qualified as VM
 
 import Data.Tuple.Ordered
-import Tourney.Result
+import Tourney.Algebra.
 
-type Player = Int
-
--- | A tournament network is a list of rounds in which each round is a set of matches.
---
--- The matches are represented by counting the pairs of combinations of matches of P players
--- as [ (a,b) | a <- [1..n], b <- [a+1..n] ] whose length is a triangular number.
--- This is so that it's impossible to feature the same player twice within a round.
-data Round = Round
+-- | A single round of a sorting network, expressed as a list of matches.
+data SortingRound = SortingRound
   { matches :: Set (LowHigh Int)
   , type_ :: MatchType
   }
   deriving stock (Show, Generic)
 
-data MatchType
-  = -- | The winner takes the highest rank
-    Swaps
-  | -- | Distribute points to N different point bins
-    Points
-  deriving stock (Show, Read, Eq, Ord, Generic)
-
 runRoundM
-  :: (PrimMonad m)
+  :: PrimMonad m
   => (a -> a -> m (MatchResult a))
   -> Round
   -> Vector a
@@ -66,8 +53,15 @@ runRoundM runMatch Round {matches, type_} initialRanking = do
         VM.write ranking ilow (loser ^. #player)
   V.zip <$> V.freeze points <*> V.freeze ranking
 
+runNetwork ::
+
 --------------------------------------------------------------------------------
 
 isqrt, tri :: Int -> Int
 isqrt = floor . sqrt . (fromIntegral :: Int -> Double)
 tri n = n * (n - 1) `div` 2
+
+-- The matches are represented by counting the pairs of combinations of matches
+-- of P players as [ (a,b) | a <- [1..n], b <- [a+1..n] ] whose length is a
+-- triangular number. This is so that it's impossible to feature the same player
+-- twice within a round.

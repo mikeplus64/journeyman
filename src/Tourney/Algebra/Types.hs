@@ -2,11 +2,8 @@ module Tourney.Algebra.Types where
 
 import Data.Tuple.Ordered
 import Data.Vector.Unboxed qualified as U
-
-type Player = Int
-
-type PlayerCount = Int
+import Tourney.Match (Player)
 
 type Standings = U.Vector Player
 
-type Match = LowHigh Int
+type PlayerCount = Int
