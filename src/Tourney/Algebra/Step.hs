@@ -1,9 +1,9 @@
 module Tourney.Algebra.Step where
 
+import Control.Monad.Free
 import Data.Function.Known
 import Data.Vector (Vector)
 import Data.Vector qualified as V
-import Data.Vector.Unboxed qualified as U
 import Tourney.Algebra.Types
 import Tourney.Match
 
@@ -93,16 +93,14 @@ tiled = Modify . OverFocus . KnownFn . PatternTileFocus
 
 data Simplifier a
   = Static a
-  | WithPlayerCount (PlayerCount -> a)
   | WithStandings (Standings -> a)
   deriving stock (Functor)
 
 instance Applicative Simplifier where
   pure = Static
   liftA2 f (Static a) (Static b) = Static (f a b)
-  liftA2 f (WithPlayerCount a) (asWithPlayerCount -> Just (WithPlayerCount b)) = WithPlayerCount (liftA2 f a b)
-  liftA2 f (WithStandings a) (asWithStandings -> b) = WithStandings (liftA2 f a b)
-  liftA2 f (asWithStandings -> a) (asWithStandings -> b) = WithStandings (liftA2 f a b)
+  liftA2 f a (WithStandings b) = WithStandings (liftA2 f (asWithStandings a) b)
+  liftA2 f (WithStandings a) b = WithStandings (liftA2 f a (asWithStandings b))
 
 instance Monoid a => Monoid (Simplifier a) where
   mempty = Static mempty
@@ -110,20 +108,28 @@ instance Monoid a => Monoid (Simplifier a) where
 instance Semigroup a => Semigroup (Simplifier a) where
   (<>) = liftA2 (<>)
 
-asWithPlayerCount :: Simplifier a -> Maybe (Simplifier a)
-asWithPlayerCount (Static a) = Just (WithPlayerCount (const a))
-asWithPlayerCount (WithPlayerCount a) = Just (WithPlayerCount a)
-asWithPlayerCount _ = Nothing
+instance Monad Simplifier where
+  Static a >>= f = f a
+  WithStandings a >>= f = WithStandings \s -> case f (a s) of
+    WithStandings g -> g s
+    Static a' -> a'
 
 asWithStandings :: Simplifier a -> Standings -> a
 asWithStandings (Static a) = const a
 asWithStandings (WithStandings a) = a
-asWithStandings (WithPlayerCount a) = a . U.length
 
-simplify :: Step -> Focus -> Simplifier [Match]
-simplify s f = case s of
+simplify :: Step -> PlayerCount -> Either [Match] (Standings -> [Match])
+simplify step count = case retract (simplifyF step Focus {focusStart = 0, focusLength = count}) of
+  Static a -> Left a
+  WithStandings f -> Right f
+
+simplifyF :: Step -> Focus -> Free Simplifier [Match]
+simplifyF s f = case s of
   Empty -> pure []
   Match m -> pure [m]
-  Overlay v -> V.foldMap (flip simplify f) v
-  Modify mod s -> V.foldMap (uncurry simplify)
-  ByCount count -> _
+  Overlay v -> fold <$> V.mapM (flip simplifyF f) v
+  Modify (OverFocus getFocus) s' -> concat <$> mapM (simplifyF s') (run getFocus (focusLength f))
+  Modify _ s' -> simplifyF s' f
+  ByCount getStep -> simplifyF (run getStep (focusLength f)) f
+  ByStandings getStandings -> Free $ WithStandings \standings ->
+    simplifyF (run getStandings standings) f
