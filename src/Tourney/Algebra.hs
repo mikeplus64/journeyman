@@ -28,21 +28,21 @@ data TournamentStep
   | BeginStep Step
   deriving stock (Eq, Show)
 
-tournament
-  :: Monad m
-  => Steps ()
-  -> Standings
-  -> Stream (Of MatchResult) m ()
-  -> Stream (Of TournamentStep) m ()
-tournament (Steps f) initialStandings results = do
-  let rounds = fst (runST (f (U.length initialStandings)))
-  S.yield (RoundDone 0 initialStandings)
-  mapM_ (performStep results) rounds
+-- tournament
+--   :: Monad m
+--   => Steps ()
+--   -> Standings
+--   -> Stream (Of MatchResult) m ()
+--   -> Stream (Of TournamentStep) m ()
+-- tournament (Steps f) initialStandings results = do
+--   let rounds = fst (runST (f (U.length initialStandings)))
+--   S.yield (RoundDone 0 initialStandings)
+--   mapM_ (performStep results) rounds
 
-performStep
-  :: Monad m
-  => Stream (Of MatchResult) m ()
-  -> Step
-  -> Stream (Of TournamentStep) m ()
-performStep results s = do
-  S.yield (BeginStep s)
+-- performStep
+--   :: Monad m
+--   => Stream (Of MatchResult) m ()
+--   -> Step
+--   -> Stream (Of TournamentStep) m ()
+-- performStep results s = do
+--   S.yield (BeginStep s)

@@ -1,59 +1,44 @@
 module Tourney.SortingNetwork where
 
 import Control.Lens
-import Control.Monad.Primitive (PrimMonad)
+import Control.Monad.ST.Strict
 import Data.Generics.Labels ()
+import Data.Tuple.Ordered
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Vector.Mutable qualified as VM
-
-import Data.Tuple.Ordered
-import Tourney.Algebra.
+import Data.Vector.Unboxed qualified as U
+import Tourney.Algebra.Step
+import Tourney.Algebra.Types
+import Tourney.Match
 
 -- | A single round of a sorting network, expressed as a list of matches.
-data SortingRound = SortingRound
-  { matches :: Set (LowHigh Int)
-  , type_ :: MatchType
-  }
-  deriving stock (Show, Generic)
+newtype SortingRound = SortingRound [(Maybe (MatchResult -> MatchPoints), LowHigh Int)]
 
-runRoundM
-  :: PrimMonad m
-  => (a -> a -> m (MatchResult a))
-  -> Round
-  -> Vector a
-  -> m (Vector (Integer, a))
-runRoundM runMatch Round {matches, type_} initialRanking = do
-  ranking <- V.thaw initialRanking
-  points <- V.thaw (V.replicate (V.length initialRanking) 0)
-  forM_ matches \(LowHigh_ ilow ihigh) -> do
-    a <- VM.read ranking ilow
-    b <- VM.read ranking ihigh
-    MatchResult {winner, loser} <- runMatch a b
-    case type_ of
-      Points -> do
-        VM.modify points (\p -> p + winner ^. #points) (winner ^. #index)
-        VM.modify points (\p -> p + loser ^. #points) (loser ^. #index)
-        ranking' <- V.freeze ranking
-        points' <- V.freeze points
-        let !next =
-              V.fromListN
-                (V.length ranking')
-                ( sortOn
-                    fst
-                    ( zip
-                        (V.toList points')
-                        (V.toList ranking')
-                    )
-                )
-        VM.copy points =<< V.thaw (V.map fst next)
-        VM.copy ranking =<< V.thaw (V.map snd next)
-      Swaps -> do
-        VM.write ranking ihigh (winner ^. #player)
-        VM.write ranking ilow (loser ^. #player)
-  V.zip <$> V.freeze points <*> V.freeze ranking
+runSwaps :: [MatchResult] -> Vector a -> Vector a
+runSwaps matches = V.modify \ranking ->
+  forM_ matches \r@MatchResult {player1, player2} -> do
+    let LowHigh_ ilow ihigh = LowHigh_ player1 player2
+    let result = do w <- winner r; l <- loser r; pure (w, l)
+    forM_ result \(w, l) -> do
+      VM.write ranking ihigh =<< VM.read ranking w
+      VM.write ranking ilow =<< VM.read ranking l
 
-runNetwork ::
+runPoints :: [(MatchResult, MatchPoints)] -> Vector (U.Vector Int, a) -> Vector (U.Vector Int, a)
+runPoints matches =
+  sortByPoints . V.modify \ranking -> do
+    forM_ matches \(r, MatchPoints points1 points2) -> do
+      VM.modify ranking (first (U.zipWith (+) points1)) (player1 r)
+      VM.modify ranking (first (U.zipWith (+) points2)) (player2 r)
+  where
+    sortByPoints v = V.fromListN (V.length v) (sortOn fst (V.toList v))
+
+focussed :: Focus -> (Vector a -> Vector b) -> Vector a -> Vector (Either a b)
+focussed Focus {focusStart, focusLength} f v = V.concat [before, middle, after]
+  where
+    before = V.map Left (V.take focusStart v)
+    middle = V.map Right (f v)
+    after = V.map Left (V.drop (focusStart + focusLength) v)
 
 --------------------------------------------------------------------------------
 

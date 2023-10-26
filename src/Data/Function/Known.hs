@@ -5,7 +5,6 @@
 module Data.Function.Known where
 
 import BasePrelude (Show (showsPrec))
-import Data.Bits
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Typeable
@@ -45,6 +44,18 @@ instance (Typeable a, Typeable b, Show b) => Show (a ~> b) where
   showsPrec p (KnownFn f) = showsPrec p (typeOf f)
 
 --------------------------------------------------------------------------------
+-- Semigroup instance
+
+data SemigroupFn a b = SemigroupFn (a ~> b) (a ~> b)
+  deriving stock (Eq, Show)
+
+instance (Typeable a, Typeable b, Eq b, Semigroup b) => KnownFunction (SemigroupFn a b) a b where
+  run (SemigroupFn f g) x = run f x <> run g x
+
+instance (Typeable a, Typeable b, Eq b, Semigroup b) => Semigroup (a ~> b) where
+  a <> b = KnownFn (SemigroupFn a b)
+
+--------------------------------------------------------------------------------
 -- Sum functions
 
 data SumFn a b c = SumFn (a ~> c) (b ~> c)
@@ -62,7 +73,7 @@ pattern SumFnK f g <- KnownFn (cast -> Just (SumFn f g))
 --------------------------------------------------------------------------------
 -- Const function
 
-data ConstFn (a :: Type) (b :: Type) = ConstFn b
+newtype ConstFn (a :: Type) (b :: Type) = ConstFn b
   deriving stock (Eq, Show)
 
 instance (Typeable a, Typeable b, Eq b) => KnownFunction (ConstFn a b) a b where
@@ -200,21 +211,7 @@ pattern ModK a <- KnownFn (cast -> Just (Mod a))
     ModK a = KnownFn (Mod a)
 
 --------------------------------------------------------------------------------
-
-ex :: Int8 ~> Int8
-ex =
-  MulK 2
-    :>>> PlusK 4
-    :>>> DivK 2
-
---------------------------------------------------------------------------------
 -- Exhaustively determining function properties
-
-split16 :: Word16 -> (Word8, Word8)
-split16 w =
-  ( fromIntegral ((w `shiftR` 0) .&. 0xff)
-  , fromIntegral ((w `shiftR` 8) .&. 0xff)
-  )
 
 implies :: Bool -> Bool -> Bool
 implies False _ = True

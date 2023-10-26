@@ -1,114 +1,123 @@
 module Tourney.Algebra.Monad where
 
 import Control.Lens hiding (Empty)
-import Control.Monad.ST.Strict
 import Data.Align qualified as Align
+import Data.Counting
+import Data.Dependency
 import Data.These
 import Data.Tuple.Ordered
 import Tourney.Algebra.Step
 import Tourney.Algebra.Types
 import Tourney.Match
 
-type TResult a = (Seq Step, a)
-
-newtype Steps a = Steps
-  { unSteps
-      :: PlayerCount
-      -> IO (TResult a)
+newtype Steps m a = Steps
+  { unSteps :: PlayerCount -> m (StepsResult a)
   }
   deriving stock (Functor)
 
-getPlayerCount :: Steps PlayerCount
-getPlayerCount = Steps \pc -> pure (pure pc)
+data StepsResult a = StepsResult
+  { accum :: Counting [] Step
+  , result :: a
+  }
+  deriving stock (Show, Functor)
 
-instance Applicative Steps where
+instance Applicative StepsResult where
+  pure = StepsResult mempty
+  StepsResult sa fa <*> StepsResult sb a = StepsResult (sa <> sb) (fa a)
+
+instance Applicative m => Applicative (Steps m) where
   pure a = Steps \_ -> pure (pure a)
   liftA2 fab (Steps fa) (Steps fb) = Steps \pc ->
     liftA2 (liftA2 fab) (fa pc) (fb pc)
 
-instance Monad Steps where
+instance Monad m => Monad (Steps m) where
   Steps ma >>= famb = Steps \pc -> do
-    (r0, a) <- ma pc
-    (r1, b) <- unSteps (famb a) pc
-    pure (r0 <> r1, b)
+    StepsResult r0 a <- ma pc
+    StepsResult r1 b <- unSteps (famb a) pc
+    pure (StepsResult (r0 <> r1) b)
 
-instance Semigroup (Steps a) where
+instance Monad m => Semigroup (Steps m a) where
   (<>) = (>>)
 
-instance Monoid a => Monoid (Steps a) where
-  mempty = Steps \_ -> pure (mempty, mempty)
+instance (Monoid a, Monad m) => Monoid (Steps m a) where
+  mempty = Steps \_ -> pure (StepsResult mempty mempty)
 
-describe :: Steps a -> PlayerCount -> Seq Step
-describe (Steps f) c = runST (fst <$> f c)
+instance MonadTrans Steps where
+  lift m = Steps \_ -> pure <$> m
 
-liftSteps :: Seq Step -> Steps ()
-liftSteps s = Steps \_ -> pure (s, ())
+instance Monad m => MonadReader r (Steps (ReaderT r m)) where
+  local f (Steps m) = Steps \c -> ReaderT \r0 -> m c `runReaderT` f r0
+  ask = lift ask
 
-class AsSteps s where
-  step :: AsSteps s => s -> Steps [Match]
-  step = stepMany . one
+preview :: MonadRequest Standings m => Steps m a -> Steps m ([CompiledStep m], a)
+preview (Steps f) = Steps \count -> do
+  StepsResult {accum, result} <- f count
+  pure
+    StepsResult
+      { accum = mempty
+      , result = (map (`compile` count) (uncounting accum), result)
+      }
 
-  stepMany :: AsSteps s => [s] -> Steps [Match]
-  stepMany = mapM_ step
+instance Monad m => HasPlayerCount (Steps m) where
+  getPlayerCount = Steps \count -> pure StepsResult {accum = mempty, result = count}
 
-instance AsSteps () where
-  step _ = step Empty
-
-instance AsSteps a => AsSteps [a] where
-  step = stepMany @a
-
-instance AsSteps Step where
-  step s = liftSteps (one s)
-  stepMany s = liftSteps (one (overlay s))
-
-instance AsSteps Match where
-  step = step . Match
-  stepMany = stepMany . map Match
-
-instance (a ~ Int, b ~ Int) => AsSteps (a, b) where
-  -- claim an instance over all pairs, but then constrain the valid elements of
-  -- them to Player
-  step = step . Match . uncurry LowHigh_
-  stepMany = stepMany . map (Match . uncurry LowHigh_)
+step :: (Applicative m, IsStep s) => s -> Steps m ()
+step s = Steps \_count ->
+  pure
+    StepsResult
+      { accum = one (toStep s)
+      , result = ()
+      }
 
 alignWith
-  :: (Step -> Step -> Step)
+  :: Monad m
+  => (Step -> Step -> Step)
   -> (a -> b -> c)
-  -> Steps a
-  -> Steps b
-  -> Steps c
+  -> Steps m a
+  -> Steps m b
+  -> Steps m c
 alignWith combineSteps combineResults (Steps fa) (Steps fb) = Steps \pc -> do
-  (sa, a) <- fa pc
-  (sb, b) <- fb pc
-  pure (Align.alignWith combine sa sb, combineResults a b)
+  StepsResult sa a <- fa pc
+  StepsResult sb b <- fb pc
+  pure
+    StepsResult
+      { accum = Align.alignWith combine sa sb
+      , result = combineResults a b
+      }
   where
     combine (These l r) = combineSteps l r
     combine (This l) = combineSteps l mempty
     combine (That r) = combineSteps mempty r
 
-interleaves :: [Steps a] -> Steps [a]
+interleaves :: Monad m => [Steps m a] -> Steps m [a]
 interleaves = foldr (\l r -> uncurry (:) <$> alignWith overlay2 (,) l r) (pure mempty)
 
-interleave_ :: [Steps ()] -> Steps ()
+interleave_ :: Monad m => [Steps m ()] -> Steps m ()
 interleave_ = foldr (\l r -> void (interleave2 l r)) (pure ())
 
-interleave2 :: Steps a -> Steps b -> Steps (a, b)
+interleave2 :: Monad m => Steps m a -> Steps m b -> Steps m (a, b)
 interleave2 = alignWith overlay2 (,)
 
-interleave2_ :: Steps () -> Steps () -> Steps ()
+interleave2_ :: Monad m => Steps m () -> Steps m () -> Steps m ()
 interleave2_ l r = void (interleave2 l r)
 
-concatMapSteps :: Steps a -> (Step -> Steps b) -> Steps (a, Seq b)
+concatMapSteps :: Monad m => Steps m a -> (Int -> Step -> Steps (ReaderT (StepsResult a) m) b) -> Steps m (a, [b])
 concatMapSteps (Steps s) f = Steps \pc -> do
-  (sa, a) <- s pc
-  let Steps next = mapM f sa
-  next pc <&> _2 %~ (,) a
+  r@StepsResult {accum = sa, result = a} <- s pc
+  let Steps next = imapM f (uncounting sa)
+  StepsResult {accum = sb, result = bs} <- next pc `runReaderT` r
+  pure StepsResult {accum = sb, result = (a, bs)}
 
-concatMapSteps_ :: Steps () -> (Step -> Steps ()) -> Steps ()
+concatMapSteps_ :: Monad m => Steps m () -> (Int -> Step -> Steps (ReaderT (Counting [] Step) m) ()) -> Steps m ()
 concatMapSteps_ (Steps s) f = Steps \pc -> do
-  (sa, a) <- s pc
-  let Steps next = mapM_ f sa
-  next pc
+  StepsResult {accum = sa} <- s pc
+  let Steps next = imapM_ f (uncounting sa)
+  next pc `runReaderT` sa
 
-delay :: Int -> Steps ()
+delay :: Monad m => Int -> Steps m ()
 delay rounds = replicateM_ rounds (pure ())
+
+statefully :: Monad m => s -> Steps (StateT s m) a -> Steps m (a, s)
+statefully s0 (Steps f) = Steps \pc -> do
+  (StepsResult {accum, result}, s1) <- runStateT (f pc) s0
+  pure StepsResult {accum, result = (result, s1)}

@@ -1,7 +1,13 @@
+{-# LANGUAGE FieldSelectors #-}
+
 module Tourney.Algebra.Step where
 
 import Control.Monad.Free
+import Data.DList (DList)
+import Data.DList qualified as DL
+import Data.Dependency
 import Data.Function.Known
+import Data.Tuple.Ordered
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Tourney.Algebra.Types
@@ -14,7 +20,8 @@ data Step
   = Modify StepMod Step
   | ByStandings (Standings ~> Step)
   | ByCount (PlayerCount ~> Step)
-  | Overlay (Vector Step)
+  | Overlay {-# UNPACK #-} !(Vector Step)
+  | Offset Int Step
   | Match Match
   | Empty
   deriving stock (Show, Eq)
@@ -25,30 +32,24 @@ data StepMod
   | WithSwapMethod
   deriving stock (Show, Eq)
 
-instance Monoid Step where
-  mempty = Empty
+instance Monoid Step where mempty = Empty
 
-instance Semigroup Step where
-  (<>) = overlay2
+-- | Uses 'overlay2'
+instance Semigroup Step where (<>) = overlay2
 
-class IsStep a where
-  toStep :: a -> Step
+-- | Overloaded 'Step' constructor.
+class IsStep a where toStep :: a -> Step
 
-instance IsStep Step where
-  toStep = id
+instance IsStep Step where toStep = id
+instance {-# OVERLAPS #-} IsStep Match where toStep = Match
+instance {-# OVERLAPS #-} (a ~ Int, b ~ Int) => IsStep (a, b) where toStep = Match . uncurry LowHigh_
+instance {-# OVERLAPPABLE #-} (Foldable f, IsStep a) => IsStep (f a) where toStep = optimise . foldMap toStep
 
-instance IsStep Match where
-  toStep = Match
-
-instance IsStep a => IsStep [a] where
-  toStep = overlay . map toStep
-
-instance IsStep a => IsStep (Vector a) where
-  toStep = Overlay . V.filter (\case Empty -> False; _ -> True) . V.map toStep
-
+-- | Combine many steps by allowing them to run simultaneously
 overlay :: [Step] -> Step
-overlay = toStep . V.fromList
+overlay = toStep
 
+-- | Combine two steps by allowing them to run simultaneously
 overlay2, (|+|) :: Step -> Step -> Step
 overlay2 Empty a = a
 overlay2 a Empty = a
@@ -58,7 +59,26 @@ overlay2 a (Overlay b) = Overlay (a `V.cons` b)
 overlay2 l r = Overlay (V.fromListN 2 [l, r])
 (|+|) = overlay2
 
-data PatternDivideFocus = PatternDivideFocus Int
+-- | Simplify the immediate inner structure of a 'Step'. This does not traverse
+-- the entire 'Step', but only the outermost node
+optimise :: Step -> Step
+optimise (Overlay v0) = case V.length filtered of
+  0 -> Empty
+  1 -> V.head filtered
+  _ -> Overlay filtered
+  where
+    filtered = V.filter (not . isEmpty) v0
+    isEmpty Empty = True
+    isEmpty (Overlay v) = V.all isEmpty v
+    isEmpty (Offset _ s) = isEmpty s
+    isEmpty (Modify _ s) = isEmpty s
+    isEmpty _ = False
+optimise s = s
+
+--------------------------------------------------------------------------------
+-- "Known" functions for manipulating steps (by 'ByStandings' or 'ByCount')
+
+newtype PatternDivideFocus = PatternDivideFocus Int
   deriving stock (Show, Eq)
 
 instance KnownFunction PatternDivideFocus PlayerCount [Focus] where
@@ -70,10 +90,16 @@ instance KnownFunction PatternDivideFocus PlayerCount [Focus] where
     where
       (len, m) = quotRem count n
 
-divide :: Int -> Step -> Step
+-- | "Divide" a step; apply it over a focus that is (1/operand) the size of the
+-- outer focus
+divide
+  :: Int
+  -- ^ The denominator to use
+  -> Step
+  -> Step
 divide = Modify . OverFocus . KnownFn . PatternDivideFocus
 
-data PatternTileFocus = PatternTileFocus Int
+newtype PatternTileFocus = PatternTileFocus Int
   deriving stock (Show, Eq)
 
 instance KnownFunction PatternTileFocus PlayerCount [Focus] where
@@ -85,51 +111,70 @@ instance KnownFunction PatternTileFocus PlayerCount [Focus] where
     where
       (len, m) = quotRem count n
 
-tiled :: Int -> Step -> Step
+-- | "Tile" a step; apply it over a focus of the given size
+tiled
+  :: Int
+  -- ^ The tile size to use
+  -> Step
+  -> Step
 tiled = Modify . OverFocus . KnownFn . PatternTileFocus
 
 --------------------------------------------------------------------------------
--- Simplifying
+-- Compiling a step
 
-data Simplifier a
-  = Static a
-  | WithStandings (Standings -> a)
-  deriving stock (Functor)
+data CompiledStep m = CompiledStep
+  { matches :: AwaitingM m [Match] () -- Laziness here is intentional
+  , source :: Step
+  }
 
-instance Applicative Simplifier where
-  pure = Static
-  liftA2 f (Static a) (Static b) = Static (f a b)
-  liftA2 f a (WithStandings b) = WithStandings (liftA2 f (asWithStandings a) b)
-  liftA2 f (WithStandings a) b = WithStandings (liftA2 f a (asWithStandings b))
+-- | Compile a 'Step' into a list of matches that it produces, and a function
+-- that, given current standings, generates a list of matches
+compile :: (MonadRequest Standings m, HasPlayerCount i) => Step -> i (CompiledStep m)
+compile step = do
+  count <- getPlayerCount
+  let focus0 = Focus {focusStart = 0, focusLength = count}
+  pure
+    CompiledStep
+      { matches = unAwaiting (DL.toList <$> Awaiting (awaiting (retract (simplifyF step focus0))))
+      , source = step
+      }
+  where
+    doOffset :: Int -> Free (DependantStream Standings) (DList Match) -> Free (DependantStream Standings) (DList Match)
+    doOffset o = fmap (fmap (offset o))
 
-instance Monoid a => Monoid (Simplifier a) where
-  mempty = Static mempty
+    simplifyF :: Step -> Focus -> Free (DependantStream Standings) (DList Match)
+    simplifyF s f = case s of
+      Empty -> pure mempty
+      Offset o s' -> doOffset o (simplifyF s' f)
+      Match m -> pure (DL.singleton m)
+      Overlay v -> fold <$> V.mapM (`simplifyF` f) v
+      Modify (OverFocus getFocus) s' ->
+        DL.concat
+          <$> mapM
+            (simplifyF s')
+            (run getFocus (focusLength f))
+      Modify _ s' -> simplifyF s' f
+      ByCount getStep -> simplifyF (run getStep (focusLength f)) f
+      ByStandings getStandings -> Free $ NeedS \standings ->
+        pure (simplifyF (run getStandings standings) f)
 
-instance Semigroup a => Semigroup (Simplifier a) where
-  (<>) = liftA2 (<>)
+-- | Compile the step into a list of matches. If there are any matches that
+-- depend on standings to be yielded, they will not be present here in the final
+-- list here
+compilePure :: HasPlayerCount m => Step -> m [Match]
+compilePure step = DL.toList . go . matches <$> compile @((->) Standings) step
+  where
+    go :: AwaitingM ((->) Standings) [Match] () -> DList Match
+    go (Done _) = DL.empty
+    go (Got x xs) = DL.fromList x <> go xs
+    go (Cat l r) = go l <> go r
+    go _ = mempty
 
-instance Monad Simplifier where
-  Static a >>= f = f a
-  WithStandings a >>= f = WithStandings \s -> case f (a s) of
-    WithStandings g -> g s
-    Static a' -> a'
+class Monad m => HasPlayerCount m where
+  getPlayerCount :: m PlayerCount
 
-asWithStandings :: Simplifier a -> Standings -> a
-asWithStandings (Static a) = const a
-asWithStandings (WithStandings a) = a
+instance HasPlayerCount ((->) PlayerCount) where
+  getPlayerCount = id
 
-simplify :: Step -> PlayerCount -> Either [Match] (Standings -> [Match])
-simplify step count = case retract (simplifyF step Focus {focusStart = 0, focusLength = count}) of
-  Static a -> Left a
-  WithStandings f -> Right f
-
-simplifyF :: Step -> Focus -> Free Simplifier [Match]
-simplifyF s f = case s of
-  Empty -> pure []
-  Match m -> pure [m]
-  Overlay v -> fold <$> V.mapM (flip simplifyF f) v
-  Modify (OverFocus getFocus) s' -> concat <$> mapM (simplifyF s') (run getFocus (focusLength f))
-  Modify _ s' -> simplifyF s' f
-  ByCount getStep -> simplifyF (run getStep (focusLength f)) f
-  ByStandings getStandings -> Free $ WithStandings \standings ->
-    simplifyF (run getStandings standings) f
+instance Monad m => HasPlayerCount (ReaderT PlayerCount m) where
+  getPlayerCount = ask

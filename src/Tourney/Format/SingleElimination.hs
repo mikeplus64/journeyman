@@ -1,23 +1,23 @@
 module Tourney.Format.SingleElimination where
 
 import Control.Lens
-import Data.Bits
 import Data.List ((!!))
 import Data.Tuple.Ordered
 import Tourney.Algebra
 import Tourney.Arith
-import Tourney.Match
 
-slaughterSeeding :: [[Match]]
-slaughterSeeding = [LowHigh_ 0 1] : imap next slaughterSeeding
+slaughter :: Int -> [Match]
+slaughter r = slaughterOf [0 .. 2 ^ r - 1]
+
+slaughterOf :: [Int] -> [Match]
+slaughterOf ls = zipWith LowHigh_ highs (reverse lows)
   where
-    next d a = [LowHigh_ p (2 ^ (d + 2) - p - 1) | p <- toList =<< a]
+    mid = length ls `quot` 2
+    (highs, lows) = splitAt mid (sort ls)
 
-singleElimination :: Steps ()
+singleElimination :: Monad m => Steps m Int
 singleElimination = do
-  players <- getPlayerCount
-  let depth = bitLog2 (nearestPow2Above players)
-  step (slaughterSeeding !! depth)
-  sequence_ do
-    round <- [1 .. depth]
-    pure (step (stride2 <$> fromPow2 round))
+  count <- getPlayerCount
+  let depth = bitLog2 (nearestPow2Above count)
+  mapM_ (step . slaughter) [depth, depth - 1 .. 1]
+  pure depth

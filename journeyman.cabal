@@ -61,6 +61,7 @@ common shared
     PatternSynonyms
     PolyKinds
     PostfixOperators
+    QuantifiedConstraints
     QuasiQuotes
     RankNTypes
     RecordWildCards
@@ -95,6 +96,7 @@ common shared
     , lens
     , linear
     , mtl
+    , pretty-simple
     , primitive
     , profunctors
     , PyF
@@ -120,8 +122,8 @@ library
   exposed-modules:
     Control.Monad.State.Remembering
     Data.Counting
+    Data.Dependency
     Data.Function.Known
-    Data.Lens.Deferred
     Data.Tuple.Ordered
     Tourney.Algebra
     Tourney.Algebra.Monad
@@ -131,8 +133,6 @@ library
     Tourney.Format.DoubleElimination
     Tourney.Format.SingleElimination
     Tourney.Match
-    Tourney.Monad
-    Tourney.Result
     Tourney.SortingNetwork
 
 test-suite test
