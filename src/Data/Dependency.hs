@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- | Dependant streams of values
 --
 -- That is, a structure that can be thought of as producing many values, but
@@ -14,25 +16,226 @@
 -- 'MonadRequest'
 module Data.Dependency (
   -- * Base type
-  DependantStream (..),
-  fromStream,
-  toStream,
-
-  -- * Awaitable streams
-  Awaiting (..),
-  AwaitingM (..),
-  awaiting,
+  Stream (..),
+  StreamM (..),
+  peek,
+  pop,
+  map,
+  peekFoldMap,
+  foldMapM,
+  yield,
+  await,
+  lift,
+  for_,
+  fold,
 
   -- * Request monads
   MonadRequest (..),
   MonadReaderRequest,
+  once,
+  cached,
 ) where
 
-import Control.Monad (ap)
-import Data.DList qualified as DL
-import Streaming
-import Streaming.Internal (Stream (..))
-import Streaming.Prelude qualified as S
+import Control.Lens
+import Control.Monad (ap, liftM2)
+import Data.Foldable qualified as Foldable
+import Prelude hiding (fold, foldMap, foldMapM, for_, lift, map)
+
+--------------------------------------------------------------------------------
+
+-- | A stream type that can be inspected without always needing to first go
+-- through the @ m @ effect. This is in contrast to the streams provided by the
+-- "streaming" package that _always_ require going through the effect monad to
+-- unwrap a stream. It also supports cheap concatentation of streams.
+--
+-- The property of being able to inspect the stream without going through its
+-- effect monad is that this stream type is very useful for modelling
+-- "dependant" streams, where some amount of data can be generated in staggered
+-- stages, contingent on explicitly-made requests for more input.
+data StreamM m a x
+  = -- | A yielded value of the stream
+    Got a !(StreamM m a x)
+  | -- | Wait for a value
+    Wait !(m (StreamM m a x))
+  | -- | Concatenate streams
+    Cat (StreamM m a x) (StreamM m a x)
+  | -- | Monadic return
+    Done x
+  deriving stock (Functor, Foldable, Traversable)
+
+deriving stock instance (Show a, Show x, forall i. Show i => Show (m i)) => Show (StreamM m a x)
+deriving stock instance (Eq a, Eq x, forall i. Eq i => Eq (m i)) => Eq (StreamM m a x)
+
+instance Functor m => Applicative (StreamM m a) where
+  pure = Done
+  liftA2 = liftM2
+  (<*>) = ap
+  a *> b = go a
+    where
+      go (Got x xs) = Got x (go xs)
+      go (Wait m) = Wait (fmap go m)
+      go (Cat x y) = Cat (go x) (go y)
+      go (Done _) = b
+
+instance Functor m => Monad (StreamM m a) where
+  (>>) = (*>)
+  a >>= f = go a
+    where
+      go (Got x xs) = Got x (go xs)
+      go (Cat x y) = Cat (go x) (go y)
+      go (Wait m) = Wait (fmap go m)
+      go (Done x) = f x
+
+instance Semigroup (StreamM m a x) where
+  (<>) = Cat
+
+instance Monoid x => Monoid (StreamM m a x) where
+  mempty = Done mempty
+
+-- | The uncons operation _purely_ pops off the first element of the stream,
+-- rebalancing the stream so that subsequent 'uncons' operations are cheap. This
+-- cannot cause any inner effect to be ran.
+instance Monoid x => Cons (StreamM m a x) (StreamM m a x) a a where
+  _Cons = prism (uncurry Got) (\s -> maybe (Left s) Right (uncons_ s))
+    where
+      {-# INLINE uncons_ #-}
+      uncons_ :: StreamM m a x -> Maybe (a, StreamM m a x)
+      uncons_ = \case
+        Got x xs -> Just (x, xs)
+        Cat l r -> unconsTo l r
+        _ -> Nothing
+
+      -- See Acc.NeAcc.uncons for a similar implementation.
+      unconsTo (Got x l') r = Just (x, Cat l' r)
+      unconsTo (Cat l' r') r = unconsTo l' (Cat r' r)
+      unconsTo _ _ = Nothing
+
+instance x ~ () => One (StreamM m a x) where
+  type OneItem (StreamM m a x) = a
+  one a = Got a (Done ())
+
+-- | Pop the first available element of the stream, rebalancing the stream if
+-- possible so that subsequent 'pop' calls are cheap. When 'Nothing' is reached,
+-- the stream has ended.
+pop :: Monad m => StreamM m a x -> m (Maybe (a, StreamM m a x))
+pop = \case
+  Got x xs -> pure (Just (x, xs))
+  Cat l r -> go l r
+  Wait m -> pop =<< m
+  _ -> pure Nothing
+  where
+    go (Got x l') r = pure (Just (x, Cat l' r))
+    go (Cat l' r') r = go l' (Cat r' r)
+    go (Wait m) r = do
+      l <- m
+      go l r
+    go _ _ = pure Nothing
+
+-- | Iterate over the stream, running effects as necessary.
+for_ :: Monad m => StreamM m a x -> (a -> m ()) -> m ()
+for_ s0 f = go s0
+  where
+    go s = do
+      next <- pop s
+      case next of
+        Just (a, s') -> f a >> go s'
+        Nothing -> pure ()
+
+{-# INLINE fold #-}
+
+-- | Fold over the elements of the stream, running effects as needed
+fold :: Monad m => StreamM m a x -> r -> (a -> r -> r) -> m r
+fold s0 z f = go z s0
+  where
+    go !acc s = do
+      next <- pop s
+      case next of
+        Just (a, s') -> go (f a acc) s'
+        Nothing -> pure acc
+
+{-# INLINE foldMapM #-}
+foldMapM :: Monad m => (a -> r -> r) -> r -> StreamM m a x -> m r
+foldMapM f = go
+  where
+    go !acc s = do
+      next <- pop s
+      case next of
+        Just (a, s') -> go (f a acc) s'
+        Nothing -> pure acc
+
+-- | Purely pop off the first element of the stream, rebalancing the stream so
+-- that subsequent 'uncons' operations are cheap. If the ordering of elements
+-- and effects is important for this stream, prefer 'uncons' instead -- this
+-- function is happy to pop off a yielded stream element from the middle of
+-- stream.
+peek :: StreamM m a x -> Maybe (a, StreamM m a x)
+peek = \case
+  Got x xs -> Just (x, xs)
+  Cat l r -> go l r
+  _ -> Nothing
+  where
+    go (Got x l') r = Just (x, Cat l' r)
+    go (Cat l' r') r = go l' (Cat r' r)
+    go l (Got x r) = Just (x, Cat l r)
+    go l (Cat l' r') = fmap (Cat l) <$> go l' r'
+    go _ _ = Nothing
+
+-- | Fold over only the immediately available elements
+peekFoldMap :: Monoid b => (a -> b) -> StreamM m a x -> b
+peekFoldMap f = go
+  where
+    go (Got x xs) = f x <> go xs
+    go (Cat x y) = go x <> go y
+    go _ = mempty
+
+lift :: Functor m => m x -> StreamM m a x
+lift mx = Wait (pure <$> mx)
+
+map :: Functor m => (a -> b) -> StreamM m a x -> StreamM m b x
+map f = \case
+  Got x xs -> Got (f x) (map f xs)
+  Cat x y -> Cat (map f x) (map f y)
+  Wait m -> Wait (fmap (map f) m)
+  Done x -> Done x
+
+yield :: a -> StreamM m a ()
+yield a = Got a (Done ())
+
+await :: forall r a m. MonadRequest r m => StreamM m a r
+await = Wait (pure <$> request @r)
+
+-- | A version of 'StreamM' with 'Functor' and 'Foldable' instances over the
+-- elements of the stream rather than the inner results of the monad
+newtype Stream m a = Stream {unStream :: StreamM m a ()}
+
+deriving newtype instance (Show a, forall i. Show i => Show (m i)) => Show (Stream m a)
+deriving newtype instance (Eq a, forall i. Eq i => Eq (m i)) => Eq (Stream m a)
+
+instance Cons (Stream m a) (Stream m a) a a where
+  {-# INLINE _Cons #-}
+  _Cons = coerced . am . coerced
+    where
+      am :: Prism (StreamM m a ()) (StreamM m a ()) (a, StreamM m a ()) (a, StreamM m a ())
+      am = _Cons
+
+instance Functor m => Functor (Stream m) where
+  fmap f = coerce (map f)
+
+-- | Fold over the immediately-available elements only
+instance Foldable (Stream m) where
+  foldMap f = coerce (peekFoldMap f)
+
+-- See
+-- https://hackage.haskell.org/package/streaming-0.2.4.0/docs/src/Streaming.Internal.html#line-331
+-- for the 'Stream' equivalent of these instances; they are (necessarily) nearly
+-- identical
+--
+-- Unlike the streams provided by the "streaming" package, the streams here are
+-- allowed to uncons elements without first going through the base monad of the
+-- stream. For instance, the Foldable instance will fold over all immediately
+-- availble elements of the stream.
+
+--------------------------------------------------------------------------------
 
 -- | A monad for reader-like monads where you can request a particular bit of
 -- data. For readers where the data is immediately available, it is the same as
@@ -61,141 +264,34 @@ class Monad m => MonadReaderRequest d' d m where requestReader :: ReaderT d' m d
 instance {-# OVERLAPPING #-} (Monad m, d ~ d') => MonadReaderRequest (m d') d m where requestReader = ReaderT id
 instance {-# OVERLAPPABLE #-} (Monad m, d ~ d') => MonadReaderRequest d' d m where requestReader = ReaderT pure
 
---------------------------------------------------------------------------------
+-- | Perform an action only once. This may be useful for ensuring a dependency
+-- only is fetched once.
+once :: (MonadIO outer, MonadIO inner, NFData a) => inner a -> outer (inner a)
+once computeValue = do
+  lockedVar <- newMVar =<< newEmptyMVar
+  let withVar f = do
+        inner <- takeMVar lockedVar
+        r <- f inner
+        putMVar lockedVar inner
+        pure r
+  pure $ withVar \self -> do
+    now <- tryReadMVar self
+    case now of
+      Just v -> pure v
+      Nothing -> do
+        !v <- evaluateNF =<< computeValue
+        putMVar self v
+        pure v
 
-data DependantStream d a
-  = OkS a
-  | NeedS (d -> DependantStream d a)
-  | SplitS (DL.DList (DependantStream d a))
-  deriving stock (Functor)
-
-instance Applicative (DependantStream d) where
-  pure = OkS
-  liftA2 = liftM2
-
-instance Monad (DependantStream d) where
-  OkS a >>= f = SplitS (fmap f (DL.singleton a))
-  NeedS fa >>= f = NeedS (f <=< fa)
-  SplitS xs >>= f = SplitS (fmap (>>= f) xs)
-
-instance Monoid (DependantStream a b) where
-  mempty = SplitS mempty
-
-instance Semigroup (DependantStream a b) where
-  a@OkS {} <> b@OkS {} = SplitS (a `DL.cons` b `DL.cons` DL.empty)
-  a@OkS {} <> SplitS b = SplitS (a `DL.cons` b)
-  NeedS a <> NeedS b = NeedS (a <> b)
-  a@NeedS {} <> SplitS b = SplitS (a `DL.cons` b)
-  SplitS a <> SplitS b = SplitS (a <> b)
-  SplitS a <> b@OkS {} = SplitS (a `DL.snoc` b)
-  SplitS a <> b@NeedS {} = SplitS (a `DL.snoc` b)
-  a <> b = SplitS (DL.cons a (DL.cons b DL.empty))
-
---------------------------------------------------------------------------------
-
--- | Create an easily-inspected stream of values from a 'DependantStream'.
---
--- Suggested usage:
--- @
--- let
---   withStream (Got x xs) = do { _ x; withStream xs }
---   withStream (Wait m) = withStream m
---   withStream Done = pure ()
---
--- withStream (awaiting depStream)
--- @
-awaiting :: forall d m a. MonadRequest d m => DependantStream d a -> AwaitingM m a ()
-awaiting = asAwaitingM . toStream
-  where
-    -- We could implement this directly without the conversion to a 'Stream'
-    -- first, but this would be a lot more complicated.
-    asAwaitingM :: Stream (Of a) m () -> AwaitingM m a ()
-    asAwaitingM s = case s of
-      Step (x :> xs) -> Got x (asAwaitingM xs)
-      Effect m -> Wait (fmap asAwaitingM m)
-      Return _ -> Done ()
-
--- | A simplification of @ 'Stream' ('Of' a) m @ that can be inspected without
--- always needing to first go through the @ m @ effect.
---
--- Another point of comparison to 'Stream' is that it supports relatively cheap
--- concatentation, at a potential later cost to iteration over the stream.
-data AwaitingM m a x
-  = Got a !(AwaitingM m a x)
-  | Wait !(m (AwaitingM m a x))
-  | Cat !(AwaitingM m a x) !(AwaitingM m a x)
-  | Done x
-  deriving stock (Functor, Foldable, Traversable)
-
-deriving stock instance (Show a, Show x, forall i. Show i => Show (m i)) => Show (AwaitingM m a x)
-deriving stock instance (Eq a, Eq x, forall i. Eq i => Eq (m i)) => Eq (AwaitingM m a x)
-
-instance Functor m => Applicative (AwaitingM m a) where
-  pure = Done
-  liftA2 = liftM2
-  (<*>) = ap
-  a *> b = go a
-    where
-      go (Got x xs) = Got x (go xs)
-      go (Wait m) = Wait (fmap go m)
-      go (Cat x y) = Cat (go x) (go y)
-      go (Done _) = b
-
-instance Functor m => Monad (AwaitingM m a) where
-  (>>) = (*>)
-  a >>= f = go a
-    where
-      go (Got x xs) = Got x (go xs)
-      go (Cat x y) = Cat (go x) (go y)
-      go (Wait m) = Wait (fmap go m)
-      go (Done x) = f x
-
-instance Semigroup (AwaitingM m a x) where
-  (<>) = Cat
-
-instance Monoid x => Monoid (AwaitingM m a x) where
-  mempty = Done mempty
-
--- | A version of 'AwaitingM' with 'Functor' and 'Foldable' instances over the
--- elements of the stream rather than the inner results of the monad
-newtype Awaiting m a = Awaiting {unAwaiting :: AwaitingM m a ()}
-
-deriving newtype instance (Show a, forall i. Show i => Show (m i)) => Show (Awaiting m a)
-deriving newtype instance (Eq a, forall i. Eq i => Eq (m i)) => Eq (Awaiting m a)
-
-instance Functor m => Functor (Awaiting m) where
-  fmap f (Awaiting aw) = Awaiting case aw of
-    Got x xs -> Got (f x) (unAwaiting (fmap f (Awaiting xs)))
-    Cat x y -> Cat (unAwaiting (fmap f (Awaiting x))) (unAwaiting (fmap f (Awaiting y)))
-    Wait m -> Wait (fmap (unAwaiting . fmap f . Awaiting) m)
-    Done x -> Done x
-
--- | Fold over the immediately-available elements only
-instance Foldable (Awaiting m) where
-  foldMap f (Awaiting aw) = go aw
-    where
-      go (Got x xs) = f x <> go xs
-      go (Cat x y) = go x <> go y
-      go _ = mempty
-
--- See
--- https://hackage.haskell.org/package/streaming-0.2.4.0/docs/src/Streaming.Internal.html#line-331
--- for the 'Stream' equivalent of these instances; they are (necessarily) nearly
--- identical
-
---------------------------------------------------------------------------------
--- Isomorphism between dependant streams and actual streams from the "streaming"
--- library
-
--- | Convert a 'DependantStream' to a 'Stream'.
-toStream :: MonadRequest d m => DependantStream d a -> Stream (Of a) m ()
-toStream (OkS a) = S.yield a
-toStream (SplitS xs) = foldMap toStream xs
-toStream (NeedS f) = effect (toStream . f <$> request)
-
--- | Convert a 'Stream' into a 'DependantStream'. The inner monad of the stream
--- must be pure functions.
-fromStream :: Stream (Of a) ((->) d) () -> DependantStream d a
-fromStream (Step (x :> xs)) = OkS x <> fromStream xs
-fromStream (Effect m) = NeedS (fromStream . m)
-fromStream (Return _) = SplitS mempty
+-- | Pure 'MonadState' version of 'once', that takes a lens to the cached value
+-- from the state, and a function to compute a value.
+cached :: (MonadState s m, NFData a) => Lens' s (Maybe a) -> m a -> m a
+cached cacheLens computeValue =
+  use cacheLens >>= \case
+    Just v -> pure v
+    Nothing -> do
+      v <- computeValue
+      case rnf v of
+        () -> do
+          cacheLens .= Just v
+          pure v

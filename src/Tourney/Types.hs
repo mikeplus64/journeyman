@@ -1,4 +1,4 @@
-module Tourney.Algebra.Types where
+module Tourney.Types where
 
 import Data.Tuple.Ordered
 import Data.Vector.Unboxed qualified as U

@@ -1,7 +1,7 @@
 module Tourney.Algebra (
   module Tourney.Algebra.Step,
   module Tourney.Algebra.Monad,
-  module Tourney.Algebra.Types,
+  module Tourney.Types,
   module Tourney.Match,
 ) where
 
@@ -10,23 +10,20 @@ import Control.Monad.ST.Strict
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Vector.Unboxed qualified as U
-import Streaming
-import Streaming.Prelude qualified as S
 import Tourney.Algebra.Monad
 import Tourney.Algebra.Step
-import Tourney.Algebra.Types
 import Tourney.Match
+import Tourney.Types
 
 data MatchID = MatchID
   { round, index :: !Int
   }
   deriving stock (Eq, Show, Ord)
 
-data TournamentStep
-  = RoundDone !Int !Standings
-  | RequestMatch !MatchID !Match
-  | BeginStep Step
-  deriving stock (Eq, Show)
+-- data TournamentStep
+--   = RoundDone !Int !Standings
+--   | RequestMatch !MatchID !Match
+--   | BeginStep Step
 
 -- tournament
 --   :: Monad m

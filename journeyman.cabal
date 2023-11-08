@@ -79,8 +79,10 @@ common shared
     , acc
     , aeson
     , algebraic-graphs
+    , array
     , async
-    , base               >=4.13.0.0 && <4.18.0.0.0
+    , base                       >=4.13.0.0 && <4.18.0.0.0
+    , brick
     , closed
     , containers
     , data-default
@@ -93,10 +95,14 @@ common shared
     , free
     , generic-lens
     , hashable
+    , IntervalMap
     , lens
     , linear
     , mtl
+    , pipes
     , pretty-simple
+    , prettyprinter
+    , prettyprinter-combinators
     , primitive
     , profunctors
     , PyF
@@ -104,12 +110,18 @@ common shared
     , relude
     , semialign
     , smallcheck
+    , stm
     , streaming
     , template-haskell
+    , text-ansi
     , these
     , time
+    , transformers
     , vector
+    , vector-algorithms
+    , vector-builder
     , vector-sized
+    , vty
     , with-utf8
 
   default-language:   Haskell2010
@@ -124,16 +136,20 @@ library
     Data.Counting
     Data.Dependency
     Data.Function.Known
+    Data.Function.Vector
     Data.Tuple.Ordered
     Tourney.Algebra
     Tourney.Algebra.Monad
     Tourney.Algebra.Step
-    Tourney.Algebra.Types
+    Tourney.Algebra.Steps
     Tourney.Arith
     Tourney.Format.DoubleElimination
+    Tourney.Format.RoundRobin
     Tourney.Format.SingleElimination
+    Tourney.Interactive
     Tourney.Match
     Tourney.SortingNetwork
+    Tourney.Types
 
 test-suite test
   import:             shared

@@ -63,11 +63,11 @@
         treefmt.config = {
           inherit (config.flake-root) projectRootFile;
           package = pkgs.treefmt;
-          programs.ormolu.enable = true;
+          programs.ormolu.enable = false;
           programs.nixpkgs-fmt.enable = true;
           programs.cabal-fmt.enable = true;
           programs.hlint.enable = true;
-          programs.ormolu.package = pkgs.haskellPackages.fourmolu;
+          # programs.ormolu.package = pkgs.haskellPackages.fourmolu;
         };
 
         # Default package & app.

@@ -33,36 +33,79 @@
 
 #+latex: \begin{multicols}{2}
 
-* Scaffold
-** Introduction
-** Motivation
-** Prior Art
-** Design of a Tournament DSL
-*** Possible approaches
-***
+* TODO Match Types
+** TODO Compare and Swap Matches
+** TODO Points Matches
+** TODO Equivalence of PM and CASM
 
-* Introduction
+* TODO Design
+** TODO Algebraic Graphs
+** TODO Reified functions
+** TODO Step and Steps
+** TODO Construction of Sorting Networks
+** TODO Validation
 
-My research topic broadly is tournament structures. That is, the structures that
-are used to determine a ranking of players in a game (such as a real-life sport
-or an eSport). I am hoping to determine what structures as most effective under
-various constraints that occur in the running of tournaments, which is informed
-by my own experience as a tournament organiser and developer of a popular
-website that facilitates the running of eSport tournaments. This is an important
-topic as the economics of sports and eSports grow and have a greater social
-impact year-on-year.
+* TODO Common Tournament Structures
+** TODO SE
+** TODO DE
+** TODO Round Robin
+** TODO Swiss
 
-In my experience, the question of what tournament structure is most effective
-comes up very frequently, and players often do feel their placement in a
-tournament was unfair, or a player's seeding unduly caused them to place higher
-or lower than they "should" have according to an assumed skill level.
+* TODO Compositions
+** TODO Kinds of tournament compositions
+** TODO Sequences
+** TODO Interleaves
+** TODO Focus-shifts
 
-A key observation in my research project proposal is the similarity of a
-tournament structure to a sorting network. This fact that a tournament can be
-constructed from any comparison-based sorting algorithm (swapping comparison
-with a game/match[fn::*Game* shall be used to refer to a contest between two
-players from here on. The exact terminology is not that important.]) is an
-important observation that I have made and informs the aims of the project.
+* Background and Introduction
+
+My project is a study of tournament structures. That is, the structures that are
+used to determine a ranking of players in a game, such as a real-life sport or
+an eSport. There are three aims of this project which will be expanded upon in
+later sections of this thesis:
+
+1. To create a computer language that enables the description of common
+   tournament structures, and also to enable creation of new tournament
+   structures as compositions of existing ones.
+2. To create an interpreter for this language that can evaluate tournament
+   descriptions; to be able to run the tournaments described by the language
+   defined in Goal 1.
+3. To systematically evaluate the efficacy of different tournament structures in
+   terms of quantifiable properties such as fairness, length, repeat-avoidance,
+   and so on.
+
+These aims are underwritten by my own experience as a tournament organiser and
+developer of a popular website that facilitates the running of eSport
+tournaments; in running these tournaments, questions of fairness and the ideal
+arrangement of tournament brackets are commonplace; validating existing methods
+or otherwise creating newer and more effective ones would be a valuable
+development here. [fn:: In my experience, the question of what tournament
+structure is most effective comes up very frequently, and players often do feel
+their placement in a tournament was unfair, or a player's seeding unduly caused
+them to place higher or lower than they "should" have according to an assumed
+skill level. I believe avoiding these scenarios would improve player
+satisifaction and enjoyment.]
+
+The economics of sports and eSports tournaments are also worth noting here, as
+year-on-year the prize-pools of tournaments have grown by [XXX: sports and
+eSports growth]. The social impact of this is out of scope for this project, but
+clearly with [XXX: growth in Twitch/stream viewerships] these tournaments are
+becoming a significant part of the zeitgeist.
+
+A key observation of this project is the existence of an equivalent sorting
+network to many tournament structures. In particular, any tournament structure
+whose rounds do not depend on the results gathered from prior rounds, and whose
+matches can be expressed in Compare-and-Swap Matches (CASM), have an equivalent
+sorting network construction. A hierarchy of match types is then constructed,
+and it is shown that CASM is a specialisation of Points Matches (PM), from which
+we can also construct tournaments based on ranking systems such as Elo
+[[cite:@elo]]. These are common
+
+This fact that a tournament can be constructed from any comparison-based sorting
+algorithm (swapping comparison with a game/match[fn::*Game* shall be used to
+refer to a contest between two players from here on. The exact terminology is
+not that important.]) is an important observation that I have made and informs
+the aims of the project.
 
 The research I will be conducting has these aims:
 

@@ -1,44 +1,53 @@
 module Tourney.SortingNetwork where
 
 import Control.Lens
-import Control.Monad.ST.Strict
+import Control.Monad.Primitive
 import Data.Generics.Labels ()
 import Data.Tuple.Ordered
 import Data.Vector (Vector)
-import Data.Vector qualified as V
+import Data.Vector.Algorithms.Intro qualified as IntroSort
 import Data.Vector.Mutable qualified as VM
-import Data.Vector.Unboxed qualified as U
 import Tourney.Algebra.Step
-import Tourney.Algebra.Types
 import Tourney.Match
 
--- | A single round of a sorting network, expressed as a list of matches.
-newtype SortingRound = SortingRound [(Maybe (MatchResult -> MatchPoints), LowHigh Int)]
+runMatchesBy
+  :: MonadPrim s m
+  => (Match -> m MatchResult)
+  -> Sorter
+  -> Vector Match
+  -> VM.MVector s (Points, a)
+  -> m ()
+runMatchesBy runMatch (Sorter focus method) matches mut = do
+  results <- mapM runMatch matches
+  case method of
+    WinnerTakesHigh -> runSwaps results mut
+    PointsAward alterPoints -> runPoints focus (fmap alterPoints results) mut
 
-runSwaps :: [MatchResult] -> Vector a -> Vector a
-runSwaps matches = V.modify \ranking ->
-  forM_ matches \r@MatchResult {player1, player2} -> do
-    let LowHigh_ ilow ihigh = LowHigh_ player1 player2
-    let result = do w <- winner r; l <- loser r; pure (w, l)
-    forM_ result \(w, l) -> do
+runSwaps :: MonadPrim s m => Vector MatchResult -> VM.MVector s (Points, a) -> m ()
+runSwaps matches ranking =
+  forM_ matches \r@MatchResult{player1, player2} -> do
+    let OrdPair_ ilow ihigh = OrdPair_ player1 player2
+    let result = liftA2 (,) (winner r) (loser r)
+    forM_ result \((w, _), (l, _)) -> do
       VM.write ranking ihigh =<< VM.read ranking w
       VM.write ranking ilow =<< VM.read ranking l
 
-runPoints :: [(MatchResult, MatchPoints)] -> Vector (U.Vector Int, a) -> Vector (U.Vector Int, a)
-runPoints matches =
-  sortByPoints . V.modify \ranking -> do
-    forM_ matches \(r, MatchPoints points1 points2) -> do
-      VM.modify ranking (first (U.zipWith (+) points1)) (player1 r)
-      VM.modify ranking (first (U.zipWith (+) points2)) (player2 r)
-  where
-    sortByPoints v = V.fromListN (V.length v) (sortOn fst (V.toList v))
-
-focussed :: Focus -> (Vector a -> Vector b) -> Vector a -> Vector (Either a b)
-focussed Focus {focusStart, focusLength} f v = V.concat [before, middle, after]
-  where
-    before = V.map Left (V.take focusStart v)
-    middle = V.map Right (f v)
-    after = V.map Left (V.drop (focusStart + focusLength) v)
+runPoints
+  :: MonadPrim s m
+  => Focus
+  -> Vector MatchResult
+  -> VM.MVector s (Points, a)
+  -> m ()
+runPoints Focus{focusStart, focusLength} matches scores = do
+  -- Add the points accumulated in the matches here
+  forM_ matches \result -> do
+    let w = winner result
+    let l = loser result
+    forM_ (liftA2 (,) w l) \((winPlayer, winPoints), (losePlayer, losePoints)) -> do
+      VM.modify scores (_1 +~ winPoints) winPlayer
+      VM.modify scores (_1 -~ losePoints) losePlayer
+  -- Finally, sort
+  IntroSort.sortByBounds (compare `on` fst) scores focusStart (focusStart + focusLength)
 
 --------------------------------------------------------------------------------
 
