@@ -23,11 +23,7 @@ data StepsContext = StepsContext
   }
   deriving stock (Generic)
 
-newtype Steps m a = Steps
-  { unSteps
-      :: StepsContext
-      -> m (a, Seq Step)
-  }
+newtype Steps m a = Steps {unSteps :: StepsContext -> m (a, Seq Step)}
   deriving stock (Functor, Generic)
   deriving
     (Applicative, Monad, MonadFix, MonadReader StepsContext, MonadWriter (Seq Step), MonadFail)
@@ -50,22 +46,26 @@ instance Monad m => Semigroup (Steps m a) where
   (<>) = (>>)
 
 instance (Monoid a, Monad m) => Monoid (Steps m a) where
-  mempty = fromTrans (pure mempty)
+  mempty = pure mempty
 
 instance MonadTrans Steps where
-  lift m = fromTrans (toTrans (lift m))
+  lift m = Steps \_ -> (,mempty) <$> m
 
 rehearse :: forall m a. Monad m => Steps m a -> Steps m (a, Seq CompiledStep)
 rehearse s = do
   count <- view #playerCount
-  let compileSteps steps = (`compile` count) <$> steps
-  second compileSteps <$> listen s
+  (a, steps :: Seq Step) <- silently (listen s)
+  pure (a, fmap (`compile` count) steps)
 
 rehearsePure :: forall m a. Monad m => Steps m a -> Steps m (a, [Vector Match])
 rehearsePure s = do
   count <- view #playerCount
-  let compileSteps steps = (`compile` count) <$> steps
-  second (foldMap (map snd . fst . pureMatches) . compileSteps) <$> listen s
+  (a, steps :: Seq Step) <- silently (listen s)
+  let toMatches x = foldMap snd (compilePure x count)
+  pure (a, map toMatches (toList steps))
+
+silently :: MonadWriter w m => m a -> m a
+silently = censor (const mempty)
 
 addPlainStep :: Monad m => Step -> Steps m Step
 addPlainStep s = s <$ tell (one s)
@@ -142,7 +142,7 @@ interleave :: Monad m => Steps m a -> Steps m b -> Steps m (a, b)
 interleave = alignWith overlay2 (,)
 
 interleave_ :: Monad m => Steps m a -> Steps m b -> Steps m ()
-interleave_ = alignWith overlay2 \_ _ -> ()
+interleave_ = alignWith overlay2 (\_ _ -> ())
 
 infixl 0 |||
 (|||) :: Monad m => Steps m a -> Steps m b -> Steps m ()

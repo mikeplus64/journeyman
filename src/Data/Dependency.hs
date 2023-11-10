@@ -19,15 +19,21 @@ module Data.Dependency (
   Stream (..),
   StreamM (..),
   peek,
+  Pop (..),
+  forcePop,
   pop,
   map,
   peekFoldMap,
-  foldMapM,
+  peekAll,
+  peekAllS,
   yield,
   await,
   lift,
   for_,
   fold,
+  hoist,
+  alignWith,
+  toVector,
 
   -- * Request monads
   MonadRequest (..),
@@ -39,6 +45,11 @@ module Data.Dependency (
 import Control.Lens
 import Control.Monad (ap, liftM2)
 import Data.Foldable qualified as Foldable
+import Data.These
+import Data.Vector (Vector)
+import Data.Vector qualified as V
+import VectorBuilder.Builder qualified as VB
+import VectorBuilder.Vector qualified as VB
 import Prelude hiding (fold, foldMap, foldMapM, for_, lift, map)
 
 --------------------------------------------------------------------------------
@@ -115,28 +126,37 @@ instance x ~ () => One (StreamM m a x) where
   one a = Got a (Done ())
 
 -- | Pop the first available element of the stream, rebalancing the stream if
--- possible so that subsequent 'pop' calls are cheap. When 'Nothing' is reached,
--- the stream has ended.
-pop :: Monad m => StreamM m a x -> m (Maybe (a, StreamM m a x))
+-- possible so that subsequent 'pop' calls are cheap. When 'PopDone' is reached,
+-- the stream has ended
+pop :: Monad m => StreamM m a x -> Pop m a x
 pop = \case
-  Got x xs -> pure (Just (x, xs))
+  Got x xs -> Pop x xs
   Cat l r -> go l r
-  Wait m -> pop =<< m
-  _ -> pure Nothing
+  Wait m -> PopWait (pop <$> m)
+  _ -> PopDone
   where
-    go (Got x l') r = pure (Just (x, Cat l' r))
+    go (Got x l') r = Pop x (Cat l' r)
     go (Cat l' r') r = go l' (Cat r' r)
-    go (Wait m) r = do
-      l <- m
-      go l r
-    go _ _ = pure Nothing
+    go (Wait m) r = PopWait (flip go r <$> m)
+    go _ r = pop r
+
+data Pop m a x
+  = Pop a (StreamM m a x)
+  | PopWait (m (Pop m a x))
+  | PopDone
+
+-- | Force a 'Pop', using the monad even if it is not strictly necessary.
+forcePop :: Monad m => Pop m a x -> m (Maybe (a, StreamM m a x))
+forcePop (Pop x xs) = pure (Just (x, xs))
+forcePop (PopWait w) = forcePop =<< w
+forcePop PopDone = pure Nothing
 
 -- | Iterate over the stream, running effects as necessary.
 for_ :: Monad m => StreamM m a x -> (a -> m ()) -> m ()
 for_ s0 f = go s0
   where
     go s = do
-      next <- pop s
+      next <- forcePop (pop s)
       case next of
         Just (a, s') -> f a >> go s'
         Nothing -> pure ()
@@ -144,29 +164,23 @@ for_ s0 f = go s0
 {-# INLINE fold #-}
 
 -- | Fold over the elements of the stream, running effects as needed
-fold :: Monad m => StreamM m a x -> r -> (a -> r -> r) -> m r
-fold s0 z f = go z s0
+fold :: Monad m => (a -> r -> r) -> r -> StreamM m a x -> m r
+fold f z = go
   where
-    go !acc s = do
-      next <- pop s
+    go s = do
+      next <- forcePop (pop s)
       case next of
-        Just (a, s') -> go (f a acc) s'
-        Nothing -> pure acc
+        Just (a, s') -> f a <$> go s'
+        Nothing -> pure z
 
-{-# INLINE foldMapM #-}
-foldMapM :: Monad m => (a -> r -> r) -> r -> StreamM m a x -> m r
-foldMapM f = go
-  where
-    go !acc s = do
-      next <- pop s
-      case next of
-        Just (a, s') -> go (f a acc) s'
-        Nothing -> pure acc
+toVector :: Monad m => StreamM m a x -> m (Vector a)
+toVector s =
+  VB.build <$> fold (\x xs -> VB.singleton x <> xs) mempty s
 
--- | Purely pop off the first element of the stream, rebalancing the stream so
--- that subsequent 'uncons' operations are cheap. If the ordering of elements
--- and effects is important for this stream, prefer 'uncons' instead -- this
--- function is happy to pop off a yielded stream element from the middle of
+-- | Purely pop off the first available element of the stream, rebalancing the
+-- stream so that subsequent 'uncons' operations are cheap. If the ordering of
+-- elements and effects is important for this stream, prefer 'uncons' instead --
+-- this function is happy to pop off a yielded stream element from the middle of
 -- stream.
 peek :: StreamM m a x -> Maybe (a, StreamM m a x)
 peek = \case
@@ -179,6 +193,28 @@ peek = \case
     go l (Got x r) = Just (x, Cat l r)
     go l (Cat l' r') = fmap (Cat l) <$> go l' r'
     go _ _ = Nothing
+
+peekAllS :: MonadState (StreamM f a x) m => m (Bool, [a])
+peekAllS = do
+  s <- get
+  let !(xs, done, s') = peekAll s
+  (done, xs) <$ put s'
+
+-- | Purely pop off all available elements of the stream. The ordering of
+-- elements may not be the order that is expected if there are effects that
+-- appear in the tree "before" available elements.
+peekAll :: StreamM f a x -> ([a], Bool, StreamM f a x)
+peekAll s =
+  case peek s of
+    Just (x, s') ->
+      let !(xs, _isComplete, s'') = peekAll s'
+      in  (x : xs, isDone s'', s'')
+    Nothing -> ([], isDone s, s)
+  where
+    isDone (Done _) = True
+    isDone (Got _ _) = False
+    isDone (Wait _) = False
+    isDone (Cat l r) = isDone l && isDone r
 
 -- | Fold over only the immediately available elements
 peekFoldMap :: Monoid b => (a -> b) -> StreamM m a x -> b
@@ -203,6 +239,60 @@ yield a = Got a (Done ())
 
 await :: forall r a m. MonadRequest r m => StreamM m a r
 await = Wait (pure <$> request @r)
+
+-- | Natural transformation over the inner monad of a stream.
+hoist :: Functor f => (forall x. f x -> g x) -> StreamM f a r -> StreamM g a r
+hoist f = \case
+  Got x xs -> Got x (hoist f xs)
+  Cat l r -> Cat (hoist f l) (hoist f r)
+  Wait m -> Wait (f (hoist f <$> m))
+  Done x -> Done x
+
+-- | Alignment of two streams. Avoids running effects until necessary.
+alignWith :: forall m a b c. Monad m => (These a b -> c) -> StreamM m a () -> StreamM m b () -> StreamM m c ()
+alignWith f = go
+  where
+    go :: StreamM m a () -> StreamM m b () -> StreamM m c ()
+    go l r = case (pop l, pop r) of
+      (Pop x xs, Pop y ys) -> do
+        yield (f (These x y))
+        go xs ys
+      (pl, PopDone) -> thises pl
+      (PopDone, pr) -> thats pr
+      (pl, pr) -> do
+        -- Fall back to running effects, since at least one of the left or right
+        -- streams will anyway
+        el <- lift (forcePop pl)
+        er <- lift (forcePop pr)
+        case (el, er) of
+          (Just (x, xs), Just (y, ys)) -> do
+            yield (f (These x y))
+            go xs ys
+          (Just (x, xs), Nothing) -> do
+            yield (f (This x))
+            thises (pop xs)
+          (Nothing, Just (y, ys)) -> do
+            yield (f (That y))
+            thats (pop ys)
+          (Nothing, Nothing) -> pure ()
+
+    -- Only "left" elements remain
+    thises :: Pop m a () -> StreamM m c ()
+    thises = \case
+      Pop x xs -> do
+        yield (f (This x))
+        thises (pop xs)
+      PopWait w -> thises =<< lift w
+      PopDone -> pure ()
+
+    -- Only "right" elements remain
+    thats :: Pop m b () -> StreamM m c ()
+    thats = \case
+      Pop y ys -> do
+        yield (f (That y))
+        thats (pop ys)
+      PopWait w -> thats =<< lift w
+      PopDone -> pure ()
 
 -- | A version of 'StreamM' with 'Functor' and 'Foldable' instances over the
 -- elements of the stream rather than the inner results of the monad

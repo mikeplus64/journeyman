@@ -84,6 +84,7 @@ common shared
     , base                       >=4.13.0.0 && <4.18.0.0.0
     , brick
     , closed
+    , colour
     , containers
     , data-default
     , data-fix
@@ -91,7 +92,7 @@ common shared
     , dlist
     , effectful
     , filepath
-    , finite-typelits
+    , fin
     , free
     , generic-lens
     , hashable
@@ -99,6 +100,8 @@ common shared
     , lens
     , linear
     , mtl
+    , nonempty-zipper
+    , palette
     , pipes
     , pretty-simple
     , prettyprinter
@@ -137,11 +140,13 @@ library
     Data.Dependency
     Data.Function.Known
     Data.Function.Vector
+    Data.MinMax
     Data.Tuple.Ordered
     Tourney.Algebra
     Tourney.Algebra.Monad
     Tourney.Algebra.Step
     Tourney.Algebra.Steps
+    Tourney.Algebra.Unified
     Tourney.Arith
     Tourney.Format.DoubleElimination
     Tourney.Format.RoundRobin

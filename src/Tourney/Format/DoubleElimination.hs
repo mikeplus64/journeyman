@@ -36,10 +36,10 @@ quadrupleElimination = addLosersBracket quadrupleElimination
 
 addLosersBracket :: MonadFail m => Steps m a -> Steps m ()
 addLosersBracket original = do
-  (_depth, ub1 :< ub2 :< ubs) <- rehearsePure original
+  (_depth, ub1 :< ubs) <- rehearsePure original
   let lowerRound1 = slaughterOf (ub1 ^.. each . larger)
   step ub1
-  step ub2 ||| step lowerRound1
+  step lowerRound1
   statefully_ (lowerRound1 ^.. each . smaller) $ iforM_ ubs \i upper -> do
     lastWinners <- get
     let shuffledLosers = linkFun i (upper ^.. each . larger)

@@ -13,6 +13,7 @@ import Data.Generics.Labels ()
 import Data.Tuple.Ordered
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+import Text.Show qualified as Text
 import Tourney.Match
 import Tourney.Types
 import VectorBuilder.Builder qualified as VectorBuilder
@@ -29,6 +30,16 @@ data Step
   | Offset Int Step
   | Match Match
   | Empty
+
+instance Show Step where
+  showsPrec p = \case
+    Empty -> Text.showString "Empty"
+    Match m -> Text.showParen True (Text.showString "Match " . Text.shows m)
+    Offset i s -> Text.showParen True (Text.showString "Offset " . Text.shows i . Text.showString " " . Text.shows s)
+    Overlay v -> Text.showParen True (Text.showString "Overlay " . Text.shows v)
+    ByFocus _f -> Text.showString "ByFocus"
+    ByStandings _f -> Text.showString "ByStandings"
+    Modify _f s -> Text.showParen True (Text.showString "Modify _ " . Text.shows s)
 
 data SortMethod
   = WinnerTakesHigh
@@ -183,19 +194,3 @@ compilePure step =
   -- Fix the specific MonadRequest to ((->) Standings) since that can be
   -- executed purely
   DL.toList . S.peekFoldMap DL.singleton . getMatches @((->) Standings) <$> compile step
-
-pureMatches :: CompiledStep -> ([(Sorter, Vector Match)], Bool)
-pureMatches cs =
-  (DL.toList matchBuilder, isComplete)
-  where
-    (matchBuilder, isComplete) = build (getMatches @((->) Standings) cs)
-    build = \case
-      Got x xs -> (DL.singleton x <> xs', completeXS)
-        where
-          (!xs', !completeXS) = build xs
-      Cat l r -> (l' <> r', completeL && completeR)
-        where
-          (!l', !completeL) = build l
-          (!r', !completeR) = build r
-      Done _ -> (mempty, True)
-      Wait _ -> (mempty, False)
