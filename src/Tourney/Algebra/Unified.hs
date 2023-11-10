@@ -46,6 +46,15 @@ data Tournament :: Depth -> Type where
 instance Monoid (Tournament t) where mempty = Empty
 instance Semigroup (Tournament t) where (<>) = (+++)
 
+instance Show (Tournament t) where
+  showsPrec p = \case
+    Sequence a b -> Show.showParen True (Show.showsPrec 9 a . Show.showString " *** " . Show.showsPrec 9 b)
+    Overlay a b -> Show.showParen True (Show.showsPrec 9 a . Show.showString " +++ " . Show.showsPrec 9 b)
+    One a -> Show.showsPrec p a
+    Empty -> Show.showString "Empty"
+    LiftTMany t -> Show.showParen True (Show.showString "Lt " . Show.showsPrec 9 t)
+    _ -> Show.showString "_"
+
 data SortMethod
   = WinnerTakesHigh
   | -- | Award points and use that to sort the results in the end

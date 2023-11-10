@@ -137,7 +137,7 @@ pop = \case
   where
     go (Got x l') r = Pop x (Cat l' r)
     go (Cat l' r') r = go l' (Cat r' r)
-    go (Wait m) r = PopWait (flip go r <$> m)
+    go (Wait m) r = PopWait ((`go` r) <$> m)
     go _ r = pop r
 
 data Pop m a x
