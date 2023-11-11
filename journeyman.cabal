@@ -29,6 +29,7 @@ common shared
     BlockArguments
     ConstraintKinds
     DataKinds
+    DefaultSignatures
     DeriveAnyClass
     DeriveDataTypeable
     DeriveFoldable
@@ -85,6 +86,7 @@ common shared
     , brick
     , closed
     , colour
+    , constraints
     , containers
     , data-default
     , data-fix
@@ -93,10 +95,12 @@ common shared
     , effectful
     , filepath
     , fin
+    , finite-typelits
     , free
     , generic-lens
     , hashable
     , IntervalMap
+    , kan-extensions
     , lens
     , linear
     , mtl
@@ -143,6 +147,7 @@ library
     Data.MinMax
     Data.Tuple.Ordered
     Tourney.Algebra
+    Tourney.Algebra.Builder
     Tourney.Algebra.Monad
     Tourney.Algebra.Step
     Tourney.Algebra.Steps

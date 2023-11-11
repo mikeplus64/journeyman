@@ -32,8 +32,13 @@ module Data.Dependency (
   for_,
   fold,
   hoist,
+  hoistT,
   alignWith,
   toVector,
+  toList,
+  null,
+  pureVector,
+  pureList,
 
   -- * Request monads
   MonadRequest (..),
@@ -44,13 +49,13 @@ module Data.Dependency (
 
 import Control.Lens
 import Control.Monad (ap, liftM2)
+import Control.Monad.Trans qualified as TM
 import Data.Foldable qualified as Foldable
 import Data.These
 import Data.Vector (Vector)
-import Data.Vector qualified as V
 import VectorBuilder.Builder qualified as VB
 import VectorBuilder.Vector qualified as VB
-import Prelude hiding (fold, foldMap, foldMapM, for_, lift, map)
+import Prelude hiding (fold, foldMap, foldMapM, for_, lift, map, null, toList)
 
 --------------------------------------------------------------------------------
 
@@ -65,9 +70,9 @@ import Prelude hiding (fold, foldMap, foldMapM, for_, lift, map)
 -- stages, contingent on explicitly-made requests for more input.
 data StreamM m a x
   = -- | A yielded value of the stream
-    Got a !(StreamM m a x)
+    Got a (StreamM m a x)
   | -- | Wait for a value
-    Wait !(m (StreamM m a x))
+    Wait (m (StreamM m a x))
   | -- | Concatenate streams
     Cat (StreamM m a x) (StreamM m a x)
   | -- | Monadic return
@@ -173,9 +178,21 @@ fold f z = go
         Just (a, s') -> f a <$> go s'
         Nothing -> pure z
 
+-- | Run a stream and its effects, collecting the results into a vector
 toVector :: Monad m => StreamM m a x -> m (Vector a)
-toVector s =
-  VB.build <$> fold (\x xs -> VB.singleton x <> xs) mempty s
+toVector s = VB.build <$> fold (\x xs -> VB.singleton x <> xs) mempty s
+
+-- | Run a stream and its effects, collecting the results into a list
+toList :: Monad m => StreamM m a x -> m [a]
+toList s = ($ []) <$> fold (\x xs -> (x :) . xs) id s -- dlist trick
+
+-- | Collect the pure elements only of a stream into a vector
+pureVector :: StreamM m a x -> Vector a
+pureVector s = peekAll s ^. _1
+
+-- | Collect the pure elements only of a stream
+pureList :: StreamM m a x -> [a]
+pureList s = peekAll s ^.. _1 . each
 
 -- | Purely pop off the first available element of the stream, rebalancing the
 -- stream so that subsequent 'uncons' operations are cheap. If the ordering of
@@ -194,7 +211,7 @@ peek = \case
     go l (Cat l' r') = fmap (Cat l) <$> go l' r'
     go _ _ = Nothing
 
-peekAllS :: MonadState (StreamM f a x) m => m (Bool, [a])
+peekAllS :: MonadState (StreamM f a x) m => m (Bool, Vector a)
 peekAllS = do
   s <- get
   let !(xs, done, s') = peekAll s
@@ -203,18 +220,20 @@ peekAllS = do
 -- | Purely pop off all available elements of the stream. The ordering of
 -- elements may not be the order that is expected if there are effects that
 -- appear in the tree "before" available elements.
-peekAll :: StreamM f a x -> ([a], Bool, StreamM f a x)
-peekAll s =
-  case peek s of
-    Just (x, s') ->
-      let !(xs, _isComplete, s'') = peekAll s'
-      in  (x : xs, isDone s'', s'')
-    Nothing -> ([], isDone s, s)
+peekAll :: StreamM f a x -> (Vector a, Bool, StreamM f a x)
+peekAll s0 = (VB.build found, null remaining, remaining)
   where
-    isDone (Done _) = True
-    isDone (Got _ _) = False
-    isDone (Wait _) = False
-    isDone (Cat l r) = isDone l && isDone r
+    (found, remaining) = go s0 mempty
+    go !s !v
+      | Just (x, s') <- peek s = go s' (v <> VB.singleton x)
+      | otherwise = (v, s)
+
+-- | Check whether a stream has any remaining elements or effects
+null :: StreamM f a x -> Bool
+null (Done _) = True
+null (Got _ _) = False
+null (Wait _) = False
+null (Cat l r) = null l && null r
 
 -- | Fold over only the immediately available elements
 peekFoldMap :: Monoid b => (a -> b) -> StreamM m a x -> b
@@ -247,6 +266,10 @@ hoist f = \case
   Cat l r -> Cat (hoist f l) (hoist f r)
   Wait m -> Wait (f (hoist f <$> m))
   Done x -> Done x
+
+-- | Natural transformation over the inner monad of a stream.
+hoistT :: (MonadTrans t, Monad m) => StreamM m a r -> StreamM (t m) a r
+hoistT = hoist TM.lift
 
 -- | Alignment of two streams. Avoids running effects until necessary.
 alignWith :: forall m a b c. Monad m => (These a b -> c) -> StreamM m a () -> StreamM m b () -> StreamM m c ()

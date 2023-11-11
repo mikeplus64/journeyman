@@ -5,16 +5,21 @@ module Tourney.Match (
   Player,
 
   -- * Matches
-  Match,
+  Match (Match),
   Points (..),
   MatchResult (..),
   matchOf,
   didPlayer1Win,
   didPlayer2Win,
+  likelyWinner,
+  likelyLoser,
   winner,
   loser,
 ) where
 
+import Control.Lens
+import Data.Generics.Labels ()
+import Data.Generics.Product.Positions (position)
 import Data.Tuple.Ordered
 import Data.Vector.Unboxed qualified as U
 import GHC.IsList (IsList (..))
@@ -84,7 +89,26 @@ alignedPointsBinOp f (Points xs) (Points ys) = Points (uncurry (U.zipWith f) (en
 -- matches as ordinary Haskell tuples.
 --
 -- It is a runtime error to construct a match using the same player twice.
-type Match = OrdPair Player
+-- type Match = OrdPair Player
+data Match = Match_ Player Player
+  deriving stock (Show, Eq, Ord, Generic)
+
+createMatch :: Player -> Player -> Match
+createMatch a b
+  | a == b = error ("invalid match due to non-unique players " <> show (a, b))
+  | not (a >= 0 && b >= 0) = error ("invalid match due to negative indices: " <> show (a, b))
+  | OrdPair_ l h <- OrdPair_ a b = Match_ l h
+
+likelyWinner, likelyLoser :: Lens' Match Player
+likelyWinner = position @1
+likelyLoser = position @2
+
+pattern Match :: Player -> Player -> Match
+pattern Match a b <- Match_ a b
+  where
+    Match a b = createMatch a b
+
+{-# COMPLETE Match #-}
 
 data MatchResult = MatchResult
   { player1, player2 :: !Player
@@ -93,7 +117,7 @@ data MatchResult = MatchResult
   deriving stock (Show, Eq)
 
 matchOf :: MatchResult -> Match
-matchOf MatchResult{player1, player2} = OrdPair_ player1 player2
+matchOf MatchResult{player1, player2} = createMatch player1 player2
 
 didPlayer1Win, didPlayer2Win :: MatchResult -> Maybe Bool
 didPlayer1Win MatchResult{score1, score2} =

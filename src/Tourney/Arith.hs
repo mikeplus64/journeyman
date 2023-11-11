@@ -11,6 +11,9 @@ import Data.Tuple.Ordered
 (..>) :: Int -> Int -> [Int]
 (..>) a b = [a, a - 1 .. b + 1]
 
+infix 5 ..<
+infix 5 ..>
+
 fromPow2 :: Int -> [Int]
 fromPow2 n = reverse [0 .. 2 ^ n - 1]
 

@@ -1,8 +1,9 @@
 module Tourney.Format.RoundRobin where
 
-import Data.Tuple.Ordered
-import Tourney.Algebra
+import Tourney.Algebra.Builder
 import Tourney.Arith
+import Tourney.Match
+import Tourney.Types
 
 --------------------------------------------------------------------------------
 
@@ -36,21 +37,11 @@ roundRobin count =
     (!midpoint, !r) = count `quotRem` 2
     !n = count + r
 
-roundRobinSteps :: Monad m => Steps m ()
-roundRobinSteps = mapM_ step . roundRobin =<< getPlayerCount
-
--- | Fold a list of players together around a midpoint of the list.
-collapseMatches :: Int -> [Player] -> [Match]
-collapseMatches midpoint players =
-  take midpoint (zipWith OrdPair_ players (reverse players))
-
 -- | Divide a tournament into 'n' groups, and perform a round-robin within each
 -- group.
-groupRoundRobin :: Monad m => Int -> Steps m ()
+groupRoundRobin :: Int -> Steps () ()
 groupRoundRobin numGroups =
-  divideInto numGroups do
-    count <- getPlayerCount
-    mapM_ step (roundRobin count)
+  divideInto numGroups (toSteps roundRobin)
 
 {-
 For comparison, the original kuachi.gg code in Rust:

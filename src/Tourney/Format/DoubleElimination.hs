@@ -3,9 +3,7 @@
 module Tourney.Format.DoubleElimination where
 
 import Control.Lens
-import Data.Tuple.Ordered
 import Tourney.Algebra
-import Tourney.Format.SingleElimination
 
 --------------------------------------------------------------------------------
 -- A direct implementation of Double Elimination tournaments.
@@ -28,31 +26,27 @@ import Tourney.Format.SingleElimination
 -- Thus we can use this to create quadruple elimination brackets, but not
 -- triple.
 
-doubleElimination :: MonadFail m => Steps m ()
-doubleElimination = addLosersBracket singleElimination
-
-quadrupleElimination :: MonadFail m => Steps m ()
-quadrupleElimination = addLosersBracket quadrupleElimination
-
-addLosersBracket :: MonadFail m => Steps m a -> Steps m ()
+addLosersBracket :: Steps () () -> Steps () ()
 addLosersBracket original = do
-  (_depth, ub1 :< ubs) <- rehearsePure original
-  let lowerRound1 = slaughterOf (ub1 ^.. each . larger)
-  step ub1
-  step lowerRound1
-  statefully_ (lowerRound1 ^.. each . smaller) $ iforM_ ubs \i upper -> do
+  ub1 :< ubs <- inspect (ByRound Flat) original
+  let lowerRound1 = foldAroundMidpoint (ub1 ^.. each . likelyLoser)
+  round_ ub1
+  round_ lowerRound1
+  evaluatingStateT (lowerRound1 ^.. each . likelyWinner) $ iforM_ ubs \i upper -> do
     lastWinners <- get
-    let shuffledLosers = linkFun i (upper ^.. each . larger)
+    let shuffledLosers = linkFun i (upper ^.. each . likelyLoser)
     -- Accept new losing players from the upper bracket
-    let acceptRound = zipWith OrdPair_ lastWinners shuffledLosers
+    let acceptRound = zipWith Match lastWinners shuffledLosers
     -- Then perform a round of just lower bracket players being eliminated
-    -- I.e., match up the winners of the step we just wrote
-    let losersRound = slaughterOf (acceptRound ^.. each . smaller)
-    -- Finally, add these steps, and store the winning players in losersRound
+    -- I.e., match up the winners of the round_ we just wrote
+    let losersRound = foldAroundMidpoint (acceptRound ^.. each . likelyWinner)
+    -- Finally, add these rounds, and store the winning players in losersRound
     -- for the next iteration
-    step upper ||| step acceptRound
-    step losersRound
-    put (losersRound ^.. each . smaller)
+    round_ do
+      toRound upper
+      toRound acceptRound
+    round_ losersRound
+    put (losersRound ^.. each . likelyWinner)
 
 linkFun :: Int -> [a] -> [a]
 linkFun size = foldr (.) id (replicate size linkFunSwap)

@@ -30,7 +30,7 @@ multiply a (LH l h)
   | otherwise = error "Data.Tuple.Ordered.multiply: negative operand"
 
 pattern OrdPair :: Ord a => a -> a -> Maybe (OrdPair a)
-pattern OrdPair mlow mhigh <- (id -> Just (LH mlow mhigh))
+pattern OrdPair mlow mhigh <- Just (LH mlow mhigh)
   where
     OrdPair a b = case compare a b of
       LT -> Just (LH a b)
@@ -39,7 +39,7 @@ pattern OrdPair mlow mhigh <- (id -> Just (LH mlow mhigh))
 
 {-# COMPLETE OrdPair_ :: OrdPair #-}
 pattern OrdPair_ :: Ord a => a -> a -> OrdPair a
-pattern OrdPair_ low high <- (id -> LH low high)
+pattern OrdPair_ low high <- LH low high
   where
     OrdPair_ a b = case compare a b of
       LT -> LH a b
