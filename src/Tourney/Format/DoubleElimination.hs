@@ -5,6 +5,7 @@ module Tourney.Format.DoubleElimination where
 import Control.Lens
 import Data.Vector qualified as V
 import Tourney.Algebra
+import Tourney.Stream
 
 --------------------------------------------------------------------------------
 -- A direct implementation of Double Elimination tournaments.

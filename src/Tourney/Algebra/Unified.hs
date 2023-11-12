@@ -67,7 +67,7 @@ instance Show (Tournament t) where
 data SortMethod
   = WinnerTakesHigh
   | -- | Award points and use that to sort the results in the end
-    PointsAward (MatchResult ~> MatchResult)
+    PointsAward
   deriving stock (Show, Eq)
 
 instance Default SortMethod where

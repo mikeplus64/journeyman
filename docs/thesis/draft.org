@@ -4,10 +4,7 @@
 #+options: timestamp:nil
 #+options: toc:nil
 #+options: num:t
-
 #+bibliography: draft.bib
-#+cite_export: csl ieee.csl
-
 #+latex_class: article
 #+latex_class_options: [a4,12pt,final]
 #+latex_header: \usepackage[left=1.5cm,top=2cm,right=1.5cm,bottom=2cm]{geometry}
@@ -27,35 +24,11 @@
 #+latex_header:   {\end{quote}\ignorespacesafterend}
 #+latex_header: \captionsetup[figure]{labelfont={bf},name={Fig.},labelsep=period}
 #+latex_header: \usepackage{mathtools}
-
 #+latex_header: \DeclarePairedDelimiter\ceil{\lceil}{\rceil}
 #+latex_header: \DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
-
 #+latex: \begin{multicols}{2}
 
-* TODO Match Types
-** TODO Compare and Swap Matches
-** TODO Points Matches
-** TODO Equivalence of PM and CASM
-
-* TODO Design
-** TODO Algebraic Graphs
-** TODO Reified functions
-** TODO Step and Steps
-** TODO Construction of Sorting Networks
-** TODO Validation
-
-* TODO Common Tournament Structures
-** TODO SE
-** TODO DE
-** TODO Round Robin
-** TODO Swiss
-
-* TODO Compositions
-** TODO Kinds of tournament compositions
-** TODO Sequences
-** TODO Interleaves
-** TODO Focus-shifts
+* Functional Tournament Design eDSL
 
 * Background and Introduction
 
@@ -508,6 +481,7 @@ algorithm that allows rematches, and ran to $n$ rounds for $n$ players; close
 "elements" - players - are repeatedly compared to create an accurate ranking of
 those players.
 
+
 ** "Design Guidelines for Domain Specific Languages" [cite:@dsl-guidelines]
 
 This paper provides a list of guidelines to follow for the design of DSLs, that
@@ -573,7 +547,80 @@ project's DSL, are:
 
 
 
-* References
-#+print_bibliography:
 
+* A Library for Tournament Design
+** Goals
+1. Easy to use
+2. Minimal number of primitives
+3. Allow for analysis
+   -> Statically analyse the pure subsets of a tournament
+4. Be able to express common tournament formats
+
+** A type for Tournaments
+Algebraic graphs primer / credit to the idea
+*** Tournament primitives
+- Type-encoded tournament depth
+- Overlays
+- Sequences
+- Focuses
+- Swapping vs point-awards, hint at section below for what tournaments are
+  traditional sorting networks and what are not
+
+** A monad for constructing a Tournament
+** Compilation into sorting network-like structures
+*** Why are some tournaments not sorting networks?
+*** Which tournaments are sorting networks and which are not?
+Normal vs point-award sorting networks. SE/DE are sorting networks, they have a
+static description using matches where the winner takes the high position in the
+sorting network. But round-robin schedules are also static descriptions, yet
+they are not sorting networks; any "upsets" in the round-robin schedule would
+cause it to perform a different tournament when expressed as a swapping sorting
+network. I.e. it needs the players to only exchange positions after all matches
+are complete. Since we are still able to inspect round robin tournaments
+statically, whether or not a tournament is a normal sorting network is not a
+good litmus test.
+
+Call "pure" tournaments those which have a static description that do not depend
+on the standings of the tournament for all matches to be output. Call "impure"
+ones tournaments that require standings to know all the matches. Since we can
+add a primitive to change the sorting method, round-robin tournaments are "pure".
+
+** Simulators of tournaments
+*** Pure simulator
+*** Statistical simulator
+*** IO simulator
+**** Piped
+**** Interactive
+
+* Usage of the Library
+Each to have a short description, a visualisation of the generated sorting
+network, and the code required to describe them.
+** Specification of Common Formats
+*** Single and Double Elimination
+*** Round Robin
+**** Round robin using standings
+**** Sorting methods
+*** Swiss-style
+
+** Common Compositions
+*** Groups of N
+*** Groups of N, then combined back again
+*** Accept only the top N players of the previous sub-tournament
+
+** Sorts
+*** Insertion sort
+*** Bitonic sort
+
+* Analysis
+** Rank preservation
+Assign elo to players and use that to simulate match results. At the end of the
+tournament, compare expected (players sorted by elo) to actual. Use normal elo
+distribution.
+
+* Availability of this library
+Link to online documentation, package, source repository, etc.
+
+* References
+
+#+print_bibliography:
 #+latex: \end{multicols}

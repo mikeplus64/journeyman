@@ -25,6 +25,8 @@ import Tourney.Algebra
 -- group stages (using eDSL primitives) becomes trivial.
 --
 
+-- XXX Set the sorting method!
+
 roundRobin :: PlayerCount -> [[Match]]
 roundRobin count =
   [ foldAround midpoint (0 : ((n - i) ..< n) ++ (1 ..< (n - i)))
