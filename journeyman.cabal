@@ -148,18 +148,17 @@ library
     Data.Tuple.Ordered
     Tourney.Algebra
     Tourney.Algebra.Builder
-    Tourney.Algebra.Monad
-    Tourney.Algebra.Step
-    Tourney.Algebra.Steps
     Tourney.Algebra.Unified
-    Tourney.Arith
+    Tourney.Common
     Tourney.Format.DoubleElimination
     Tourney.Format.RoundRobin
     Tourney.Format.SingleElimination
     Tourney.Interactive
+    Tourney.IOResultsProvider
     Tourney.Match
+    Tourney.Match.Matrix
     Tourney.SortingNetwork
-    Tourney.Types
+    Tourney.UI.Main
 
 test-suite test
   import:             shared

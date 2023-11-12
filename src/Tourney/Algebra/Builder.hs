@@ -8,6 +8,7 @@ module Tourney.Algebra.Builder (
 
   -- * Steps
   Steps,
+  steps,
   round_,
   rounds_,
 
@@ -48,8 +49,9 @@ import Data.DList (DList)
 import Data.DList qualified as DL
 import Data.Vector (Vector)
 import Tourney.Algebra.Unified as U
+import Tourney.Common
 import Tourney.Match
-import Tourney.Types
+import Tourney.Stream (Inspect (..), Inspection (..), noStandings, runInspection)
 import Prelude hiding (round, sequence)
 
 -- | Describe what strategy is appropriate to use for merging tournaments of a
@@ -97,28 +99,28 @@ execSteps f = U.sequence . map snd . runBuilder f
 -- | Values that have simple 'Steps' representations. Think of this as an
 -- overloaded 'Steps' constructor.
 class AsSteps a r where
-  tellSteps :: a -> Steps r ()
+  steps :: a -> Steps r ()
 
 instance a ~ () => AsSteps (Steps r a) r where
-  tellSteps = id
+  steps = id
 
 instance t ~ TMany => AsSteps (Tournament t) r where
-  tellSteps = tellBuilder
+  steps = tellBuilder
 
 instance AsRound a () => AsSteps [a] r where
-  tellSteps = mapM_ (round_ . toRound @a)
+  steps = mapM_ (round_ . toRound @a)
 
 instance AsRound a () => AsSteps (Vector a) r where
-  tellSteps = mapM_ (round_ . toRound @a)
+  steps = mapM_ (round_ . toRound @a)
 
 instance (AsSteps a r, r ~ ()) => AsSteps (PlayerCount -> a) r where
-  tellSteps f = tellBuilder $ ByPlayerCount $ execSteps id . tellSteps @a @r . f
+  steps f = tellBuilder $ ByPlayerCount $ execSteps id . steps @a @r . f
 
 instance (AsSteps a r, r ~ ()) => AsSteps (Standings -> a) r where
-  tellSteps f = tellBuilder $ ByStandings $ execSteps id . tellSteps @a @r . f
+  steps f = tellBuilder $ ByStandings $ execSteps id . steps @a @r . f
 
 instance (AsSteps a r, r ~ ()) => AsSteps (Focus -> a) r where
-  tellSteps f = tellBuilder $ ByFocus $ execSteps id . tellSteps @a @r . f
+  steps f = tellBuilder $ ByFocus $ execSteps id . steps @a @r . f
 
 -- Basic syntax for 'Steps'
 ----------------------------------------

@@ -3,6 +3,7 @@
 module Tourney.Format.DoubleElimination where
 
 import Control.Lens
+import Data.Vector qualified as V
 import Tourney.Algebra
 
 --------------------------------------------------------------------------------
@@ -28,11 +29,12 @@ import Tourney.Algebra
 
 addLosersBracket :: Steps () () -> Steps () ()
 addLosersBracket original = do
-  ub1 :< ubs <- inspect (ByRound Flat) original
+  Right (ub1 :< ubs) <- inspect (ByRound Flat) original
   let lowerRound1 = foldAroundMidpoint (ub1 ^.. each . likelyLoser)
   round_ ub1
   round_ lowerRound1
-  evaluatingStateT (lowerRound1 ^.. each . likelyWinner) $ iforM_ ubs \i upper -> do
+  evaluatingStateT (lowerRound1 ^.. each . likelyWinner) do
+    (i, upper) <- lift (list (V.indexed ubs))
     lastWinners <- get
     let shuffledLosers = linkFun i (upper ^.. each . likelyLoser)
     -- Accept new losing players from the upper bracket
@@ -55,6 +57,3 @@ linkFunSwap :: [a] -> [a]
 linkFunSwap l = drop h l ++ take h l
   where
     h = length l `div` 2
-
---------------------------------------------------------------------------------
--- Alternatively

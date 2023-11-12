@@ -2,31 +2,30 @@ module Tourney.SortingNetwork where
 
 import Control.Lens
 import Control.Monad.Primitive
+import Data.Function.Known
 import Data.Generics.Labels ()
-import Data.Tuple.Ordered
 import Data.Vector (Vector)
 import Data.Vector.Algorithms.Intro qualified as IntroSort
 import Data.Vector.Mutable qualified as VM
-import Tourney.Algebra.Step
+import Tourney.Algebra.Unified
 import Tourney.Match
+
+--------------------------------------------------------------------------------
 
 runMatchesBy
   :: MonadPrim s m
-  => (Match -> m MatchResult)
-  -> Sorter
-  -> Vector Match
+  => Sorter
+  -> Vector MatchResult
   -> VM.MVector s (Points, a)
   -> m ()
-runMatchesBy runMatch (Sorter focus method) matches mut = do
-  results <- mapM runMatch matches
+runMatchesBy (Sorter focus method) results mut = do
   case method of
     WinnerTakesHigh -> runSwaps results mut
-    PointsAward alterPoints -> runPoints focus (fmap alterPoints results) mut
+    PointsAward alterPoints -> runPoints focus (fmap (run alterPoints) results) mut
 
 runSwaps :: MonadPrim s m => Vector MatchResult -> VM.MVector s (Points, a) -> m ()
 runSwaps matches ranking =
-  forM_ matches \r@MatchResult{player1, player2} -> do
-    let OrdPair_ ilow ihigh = OrdPair_ player1 player2
+  forM_ matches \r@MatchResult{match = Match ilow ihigh} -> do
     let result = liftA2 (,) (winner r) (loser r)
     forM_ result \((w, _), (l, _)) -> do
       VM.write ranking ihigh =<< VM.read ranking w
@@ -50,10 +49,6 @@ runPoints Focus{focusStart, focusLength} matches scores = do
   IntroSort.sortByBounds (compare `on` fst) scores focusStart (focusStart + focusLength)
 
 --------------------------------------------------------------------------------
-
-isqrt, tri :: Int -> Int
-isqrt = floor . sqrt . (fromIntegral :: Int -> Double)
-tri n = n * (n - 1) `div` 2
 
 -- The matches are represented by counting the pairs of combinations of matches
 -- of P players as [ (a,b) | a <- [1..n], b <- [a+1..n] ] whose length is a

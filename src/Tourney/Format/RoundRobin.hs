@@ -1,9 +1,6 @@
 module Tourney.Format.RoundRobin where
 
-import Tourney.Algebra.Builder
-import Tourney.Arith
-import Tourney.Match
-import Tourney.Types
+import Tourney.Algebra
 
 --------------------------------------------------------------------------------
 
@@ -30,7 +27,7 @@ import Tourney.Types
 
 roundRobin :: PlayerCount -> [[Match]]
 roundRobin count =
-  [ collapseMatches midpoint (0 : ((n - i) ..< n) ++ (1 ..< (n - i)))
+  [ foldAround midpoint (0 : ((n - i) ..< n) ++ (1 ..< (n - i)))
   | i <- [0 .. n - 2]
   ]
   where
@@ -41,7 +38,7 @@ roundRobin count =
 -- group.
 groupRoundRobin :: Int -> Steps () ()
 groupRoundRobin numGroups =
-  divideInto numGroups (toSteps roundRobin)
+  divideInto numGroups (steps roundRobin)
 
 {-
 For comparison, the original kuachi.gg code in Rust:
@@ -76,10 +73,10 @@ pub fn group_schedule(signups: usize, rematches: usize) -> Vec<Vec<(usize, usize
 
 --------------------------------------------------------------------------------
 
--- | For comparison, I take an existing implementation available here
+-- | For another comparison, I take an existing implementation available here
 -- https://hackage.haskell.org/package/Tournament-0.0.1/docs/src/Game-Tournament.html#robin
--- as an example and successively adapt it to the "journeyman" style. It is
--- licensed MIT, and its license is reproduced below:
+-- as an example and adapt it to the "journeyman" style. It is licensed MIT, and
+-- its license is reproduced below:
 --
 -- (The MIT License)
 --
@@ -104,7 +101,7 @@ pub fn group_schedule(signups: usize, rematches: usize) -> Vec<Vec<(usize, usize
 -- TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 -- SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 roundRobinEirikAlbrigtsen :: Int -> [[Match]]
-roundRobinEirikAlbrigtsen count = map (collapseMatches midpoint . toList) r
+roundRobinEirikAlbrigtsen count = map (foldAround midpoint . toList) r
   where
     (!midpoint, !oddness) = count `quotRem` 2
     !end = count + oddness - 1

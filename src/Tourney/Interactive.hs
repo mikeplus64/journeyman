@@ -35,14 +35,11 @@ import Graphics.Vty qualified as Vty
 import Graphics.Vty.Attributes qualified as I
 import Graphics.Vty.Image qualified as I
 import Graphics.Vty.Input.Events
-import Tourney.Algebra.Monad
-import Tourney.Algebra.Step
+import Tourney.Algebra
 import Tourney.Format.DoubleElimination
 import Tourney.Format.RoundRobin
 import Tourney.Format.SingleElimination
-import Tourney.Match
 import Tourney.SortingNetwork
-import Tourney.Types
 import VectorBuilder.Builder qualified as VB
 import VectorBuilder.Vector qualified as VB
 
@@ -289,65 +286,65 @@ createRounds steps esp = do
 -- --   forM_ mcur \cur -> #activeRounds %= (cur :)
 -- --   #activeRounds %= (matches :)
 
--- drawRound :: PlayerCount -> V.Vector (Sorter, V.Vector Match) -> Brick.Widget AppElement
--- drawRound pc matches =
---   Brick.raw $
---     I.horizCat
---       [ vertLine False
---       , I.horizCat
---           [ drawMatchColumn m
---           | m <- V.toList (matches >>= snd)
---           ]
---       , horizLines
---       , vertLine True
---       ]
---   where
---     !count = maximumOf (each . _2 . each . larger) matches & maybe pc (+ 1) & max pc
---     !width = length (show count :: String)
---     vertLine right =
---       I.vertCat
---         . map (\f -> I.char (I.defAttr `I.withForeColor` dim) (f unicodeRounded))
---         . concat
---         $ [ [if right then bsCornerTR else bsCornerTL]
---           , replicate (count - 2) bsVertical
---           , [if right then bsCornerBR else bsCornerBL]
---           ]
---     horizLines = I.vertCat (replicate count (I.char (I.defAttr `I.withForeColor` dim) (bsHorizontal unicodeRounded)))
---     drawMatchColumn (OrdPair_ low high) =
---       I.horizCat
---         [ horizLines
---         , I.vertCat
---             [ if
---               | low < m && m < high -> I.string (matchColour low high m) (replicate width ' ')
---               | m == low -> I.string (matchColour low high m) (pad (show m))
---               | m == high -> I.string (matchColour low high m) (pad (show m))
---               | otherwise -> I.string (I.defAttr `I.withForeColor` dim) (replicate width (bsHorizontal unicode))
---             | m <- [0 .. count - 1]
---             ]
---         ]
---     dim = I.linearColor @Word8 50 50 50
---     pad x = replicate (width - length x) ' ' ++ x
---     matchColour low high actual =
---       I.defAttr
---         `I.withBackColor` toVtyRGB midColour
---         `I.withForeColor` toVtyRGB textColour
---         `I.withStyle` I.bold
---       where
---         textColour, midColour, lowColour, highColour :: Colour.Colour Double
---         !textColour
---           | isBye = Colour.grey
---           | Colour.luminance midColour > 0.3 = Colour.black
---           | otherwise = Colour.white
---         !midColour =
---           Colour.blend (sqrt dist) lowColour highColour
---             & Colour.darken (if isBye then 0.01 else 1.0)
---         !lowColour = colours V.! low
---         !highColour = colours V.! high
---         !dist = fromIntegral (high - actual) / fromIntegral (high - low)
---         !isBye = not (low >= 0 && high < pc)
---     colours = V.fromList (take count (cycle (Colour.brewerSet Colour.Paired 12)))
---     toVtyRGB c = case Colour.toSRGB24 c of
---       Colour.RGB r g b -> I.linearColor r g b
+drawRound :: PlayerCount -> V.Vector (Sorter, V.Vector Match) -> Brick.Widget AppElement
+drawRound pc matches =
+  Brick.raw $
+    I.horizCat
+      [ vertLine False
+      , I.horizCat
+          [ drawMatchColumn m
+          | m <- V.toList (matches >>= snd)
+          ]
+      , horizLines
+      , vertLine True
+      ]
+  where
+    !count = maximumOf (each . _2 . each . larger) matches & maybe pc (+ 1) & max pc
+    !width = length (show count :: String)
+    vertLine right =
+      I.vertCat
+        . map (\f -> I.char (I.defAttr `I.withForeColor` dim) (f unicodeRounded))
+        . concat
+        $ [ [if right then bsCornerTR else bsCornerTL]
+          , replicate (count - 2) bsVertical
+          , [if right then bsCornerBR else bsCornerBL]
+          ]
+    horizLines = I.vertCat (replicate count (I.char (I.defAttr `I.withForeColor` dim) (bsHorizontal unicodeRounded)))
+    drawMatchColumn (OrdPair_ low high) =
+      I.horizCat
+        [ horizLines
+        , I.vertCat
+            [ if
+              | low < m && m < high -> I.string (matchColour low high m) (replicate width ' ')
+              | m == low -> I.string (matchColour low high m) (pad (show m))
+              | m == high -> I.string (matchColour low high m) (pad (show m))
+              | otherwise -> I.string (I.defAttr `I.withForeColor` dim) (replicate width (bsHorizontal unicode))
+            | m <- [0 .. count - 1]
+            ]
+        ]
+    dim = I.linearColor @Word8 50 50 50
+    pad x = replicate (width - length x) ' ' ++ x
+    matchColour low high actual =
+      I.defAttr
+        `I.withBackColor` toVtyRGB midColour
+        `I.withForeColor` toVtyRGB textColour
+        `I.withStyle` I.bold
+      where
+        textColour, midColour, lowColour, highColour :: Colour.Colour Double
+        !textColour
+          | isBye = Colour.grey
+          | Colour.luminance midColour > 0.3 = Colour.black
+          | otherwise = Colour.white
+        !midColour =
+          Colour.blend (sqrt dist) lowColour highColour
+            & Colour.darken (if isBye then 0.01 else 1.0)
+        !lowColour = colours V.! low
+        !highColour = colours V.! high
+        !dist = fromIntegral (high - actual) / fromIntegral (high - low)
+        !isBye = not (low >= 0 && high < pc)
+    colours = V.fromList (take count (cycle (Colour.brewerSet Colour.Paired 12)))
+    toVtyRGB c = case Colour.toSRGB24 c of
+      Colour.RGB r g b -> I.linearColor r g b
 
 --------------------------------------------------------------------------------
 -- Utility

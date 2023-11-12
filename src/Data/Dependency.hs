@@ -20,8 +20,9 @@ module Data.Dependency (
   StreamM (..),
   peek,
   Pop (..),
-  forcePop,
   pop,
+  forcePop,
+  popForced,
   map,
   peekFoldMap,
   peekAll,
@@ -29,6 +30,7 @@ module Data.Dependency (
   yield,
   await,
   lift,
+  for,
   for_,
   fold,
   hoist,
@@ -55,7 +57,7 @@ import Data.These
 import Data.Vector (Vector)
 import VectorBuilder.Builder qualified as VB
 import VectorBuilder.Vector qualified as VB
-import Prelude hiding (fold, foldMap, foldMapM, for_, lift, map, null, toList)
+import Prelude hiding (fold, foldMap, foldMapM, for_, group, lift, map, null, toList)
 
 --------------------------------------------------------------------------------
 
@@ -132,13 +134,17 @@ instance x ~ () => One (StreamM m a x) where
 
 -- | Pop the first available element of the stream, rebalancing the stream if
 -- possible so that subsequent 'pop' calls are cheap. When 'PopDone' is reached,
--- the stream has ended
+-- the stream has ended. The reason that this is given its own type instead of
+-- immediately returning @ m (a, StreamM m a x) @ is because many streams in
+-- this project are in fact pure. So the actual type should be like @ Either
+-- (Maybe (a, Stream m a x)) (m (Maybe (a, StreamM m a x))) @ which is obviously
+-- much more unwieldy; hence a custom type.
 pop :: Monad m => StreamM m a x -> Pop m a x
 pop = \case
   Got x xs -> Pop x xs
   Cat l r -> go l r
   Wait m -> PopWait (pop <$> m)
-  _ -> PopDone
+  Done x -> PopDone x
   where
     go (Got x l') r = Pop x (Cat l' r)
     go (Cat l' r') r = go l' (Cat r' r)
@@ -148,13 +154,17 @@ pop = \case
 data Pop m a x
   = Pop a (StreamM m a x)
   | PopWait (m (Pop m a x))
-  | PopDone
+  | PopDone x
 
 -- | Force a 'Pop', using the monad even if it is not strictly necessary.
 forcePop :: Monad m => Pop m a x -> m (Maybe (a, StreamM m a x))
 forcePop (Pop x xs) = pure (Just (x, xs))
 forcePop (PopWait w) = forcePop =<< w
-forcePop PopDone = pure Nothing
+forcePop (PopDone _) = pure Nothing
+
+-- | Convenience
+popForced :: Monad m => StreamM m a x -> m (Maybe (a, StreamM m a x))
+popForced = forcePop . pop
 
 -- | Iterate over the stream, running effects as necessary.
 for_ :: Monad m => StreamM m a x -> (a -> m ()) -> m ()
@@ -165,6 +175,17 @@ for_ s0 f = go s0
       case next of
         Just (a, s') -> f a >> go s'
         Nothing -> pure ()
+
+-- | Iterate over the stream, running effects as necessary.
+for :: Monad m => StreamM m a x -> (a -> m b) -> StreamM m b x
+for s0 f = go (pop s0)
+  where
+    go = \case
+      Pop x xs -> do
+        yield =<< lift (f x)
+        go (pop xs)
+      PopWait w -> Wait (fmap go w)
+      PopDone x -> pure x
 
 {-# INLINE fold #-}
 
@@ -280,8 +301,8 @@ alignWith f = go
       (Pop x xs, Pop y ys) -> do
         yield (f (These x y))
         go xs ys
-      (pl, PopDone) -> thises pl
-      (PopDone, pr) -> thats pr
+      (pl, PopDone _) -> thises pl
+      (PopDone _, pr) -> thats pr
       (pl, pr) -> do
         -- Fall back to running effects, since at least one of the left or right
         -- streams will anyway
@@ -306,7 +327,7 @@ alignWith f = go
         yield (f (This x))
         thises (pop xs)
       PopWait w -> thises =<< lift w
-      PopDone -> pure ()
+      PopDone _ -> pure ()
 
     -- Only "right" elements remain
     thats :: Pop m b () -> StreamM m c ()
@@ -315,7 +336,7 @@ alignWith f = go
         yield (f (That y))
         thats (pop ys)
       PopWait w -> thats =<< lift w
-      PopDone -> pure ()
+      PopDone _ -> pure ()
 
 -- | A version of 'StreamM' with 'Functor' and 'Foldable' instances over the
 -- elements of the stream rather than the inner results of the monad
@@ -347,6 +368,37 @@ instance Foldable (Stream m) where
 -- allowed to uncons elements without first going through the base monad of the
 -- stream. For instance, the Foldable instance will fold over all immediately
 -- availble elements of the stream.
+
+--------------------------------------------------------------------------------
+-- Grouping elements of a stream
+
+data Group a
+  = GroupSplit !a !a
+  | GroupCombine !a
+
+-- | Group consecutive elements of a stream
+group
+  :: forall a m x
+   . Monad m
+  => (a -> a -> m (Group a))
+  -> StreamM m a x
+  -> StreamM m a ()
+group f = go0 . pop
+  where
+    go0 :: Pop m a x -> StreamM m a ()
+    go0 = \case
+      Pop x xs -> go x (pop xs)
+      PopWait w -> Wait (fmap go0 w)
+      PopDone _ -> pure ()
+
+    go :: a -> Pop m a x -> StreamM m a ()
+    go x = \case
+      Pop x' xs' ->
+        lift (f x x') >>= \case
+          GroupCombine c -> go c (pop xs')
+          GroupSplit y y' -> yield y >> go y' (pop xs')
+      PopWait w -> Wait (go x <$> w)
+      PopDone _ -> yield x
 
 --------------------------------------------------------------------------------
 

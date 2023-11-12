@@ -1,14 +1,14 @@
-{-# LANGUAGE FieldSelectors #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Tourney.Match (
-  -- * Players
-  Player,
-
   -- * Matches
   Match (Match),
+  createMatch,
+  createCheckedMatch,
+  validateMatch,
   Points (..),
   MatchResult (..),
-  matchOf,
+  Result (..),
   didPlayer1Win,
   didPlayer2Win,
   likelyWinner,
@@ -20,14 +20,9 @@ module Tourney.Match (
 import Control.Lens
 import Data.Generics.Labels ()
 import Data.Generics.Product.Positions (position)
-import Data.Tuple.Ordered
 import Data.Vector.Unboxed qualified as U
 import GHC.IsList (IsList (..))
-
--- | The basic type for a player is simply their _current_ index. That is, the
--- position they occupy in equivalent sorting network of a round, at the
--- beginning of that round.
-type Player = Int
+import Tourney.Common (Focus (..), Player, Slot)
 
 --------------------------------------------------------------------------------
 -- Points
@@ -90,14 +85,27 @@ alignedPointsBinOp f (Points xs) (Points ys) = Points (uncurry (U.zipWith f) (en
 --
 -- It is a runtime error to construct a match using the same player twice.
 -- type Match = OrdPair Player
-data Match = Match_ Player Player
+data Match = Match_ Slot Slot
   deriving stock (Show, Eq, Ord, Generic)
 
 createMatch :: Player -> Player -> Match
 createMatch a b
-  | a == b = error ("invalid match due to non-unique players " <> show (a, b))
   | not (a >= 0 && b >= 0) = error ("invalid match due to negative indices: " <> show (a, b))
-  | OrdPair_ l h <- OrdPair_ a b = Match_ l h
+  | otherwise = case compare a b of
+      LT -> Match_ a b
+      GT -> Match_ b a
+      EQ -> error ("invalid match due to non-unique players " <> show (a, b))
+
+createCheckedMatch :: Focus -> Player -> Player -> Maybe Match
+createCheckedMatch Focus{focusStart, focusLength} a b = do
+  guard (a >= 0 && b >= 0)
+  guard (a /= b)
+  let (l, h) = if a < b then (a, b) else (b, a)
+  guard (l >= focusStart && h < focusStart + focusLength)
+  pure (Match_ l h)
+
+validateMatch :: Focus -> Match -> Bool
+validateMatch f (Match_ a b) = isJust (createCheckedMatch f a b)
 
 likelyWinner, likelyLoser :: Lens' Match Player
 likelyWinner = position @1
@@ -110,30 +118,40 @@ pattern Match a b <- Match_ a b
 
 {-# COMPLETE Match #-}
 
+data Result = Result !Points !Points
+  deriving stock (Show, Eq, Ord, Generic)
+
 data MatchResult = MatchResult
-  { player1, player2 :: !Player
-  , score1, score2 :: !Points
+  { match :: !Match
+  , result :: !Result
   }
-  deriving stock (Show, Eq)
+  deriving stock (Show, Eq, Ord, Generic)
 
-matchOf :: MatchResult -> Match
-matchOf MatchResult{player1, player2} = createMatch player1 player2
-
-didPlayer1Win, didPlayer2Win :: MatchResult -> Maybe Bool
-didPlayer1Win MatchResult{score1, score2} =
+didPlayer1Win :: MatchResult -> Maybe Bool
+didPlayer1Win MatchResult{result = Result score1 score2} =
   case score1 `compare` score2 of
     LT -> Just True
     EQ -> Nothing
     GT -> Just False
-didPlayer2Win MatchResult{score1, score2} =
+
+didPlayer2Win :: MatchResult -> Maybe Bool
+didPlayer2Win MatchResult{result = Result score1 score2} =
   case score2 `compare` score1 of
     LT -> Just True
     EQ -> Nothing
     GT -> Just False
 
-winner, loser :: MatchResult -> Maybe (Player, Points)
-winner m = didPlayer1Win m <&> \b -> if b then (player1 m, score1 m) else (player2 m, score2 m)
-loser m = didPlayer2Win m <&> \b -> if b then (player1 m, score1 m) else (player2 m, score2 m)
+winner :: MatchResult -> Maybe (Player, Points)
+winner m = didPlayer1Win m <&> getResult m
+
+loser :: MatchResult -> Maybe (Player, Points)
+loser m = didPlayer2Win m <&> getResult m . not
+
+getResult :: MatchResult -> Bool -> (Player, Points)
+getResult m didP1Win =
+  if didP1Win
+    then (m ^. #match . position @1, m ^. #result . position @1)
+    else (m ^. #match . position @2, m ^. #result . position @2)
 
 --------------------------------------------------------------------------------
 -- Internals
