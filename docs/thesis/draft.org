@@ -556,20 +556,51 @@ project's DSL, are:
    -> Statically analyse the pure subsets of a tournament
 4. Be able to express common tournament formats
 
+** Designs that were explored
+- Indexing of triangular numbers
+  + A round-robin schedule has a triangular number of games. All rounds of all
+    tournaments are some subset of a round-robin schedule. So you could probably
+    express tournaments as an index into this domain; but how do you decide
+    those indices? You probably end up needing or wanting an eDSL anyway to get
+    those.
+- Match lists
+  + Just use ~List (List Match)~. What tournaments can't be expresed like this?
+- Steps + Step builders
+- Limitations leading to final design
+
 ** A type for Tournaments
 Algebraic graphs primer / credit to the idea
+
 *** Tournament primitives
 - Type-encoded tournament depth
 - Overlays
+  + Meaning of at single round level
+  + Meaning of at rounds level
 - Sequences
+  + Meaning of at rounds level
 - Focuses
-- Swapping vs point-awards, hint at section below for what tournaments are
-  traditional sorting networks and what are not
+  + Meaning of at single round level
+  + Meaning of at the rounds level
+- Sort methods
+  + Meaning of at single round level
+  + Meaning of at rounds level
 
 ** A monad for constructing a Tournament
+List-monad for accumulating tournaments
+- "Inverting" the Tournament type with continuations, avoiding lambdas
+- Is it a law-abiding Monad?
+
 ** Compilation into sorting network-like structures
+
+*** Optionally-dependent streams of matches
+We have streams of matches that _can_ depend on an outside monad like IO to get
+match results, but they can also run completely purely. They can be inspected
+and ran without going through IO to say whether they are pure or not; the pure
+"prefix" of the tournament can then be returned, along with the impure "suffix".
+
+*** An instruction set for tournaments
+
 *** Why are some tournaments not sorting networks?
-*** Which tournaments are sorting networks and which are not?
 Normal vs point-award sorting networks. SE/DE are sorting networks, they have a
 static description using matches where the winner takes the high position in the
 sorting network. But round-robin schedules are also static descriptions, yet
@@ -597,6 +628,7 @@ Each to have a short description, a visualisation of the generated sorting
 network, and the code required to describe them.
 ** Specification of Common Formats
 *** Single and Double Elimination
+- "Slaughter" seeding
 *** Round Robin
 **** Round robin using standings
 **** Sorting methods
