@@ -7,4 +7,4 @@ singleElimination = do
   count <- getPlayerCount
   let depth = bitLog2 (nearestPow2Above count)
   d <- list (depth ..> 0)
-  round_ (foldAroundMidpoint (0 ..< 2 ^ d))
+  withSortMethod WinnerTakesHigh (round_ (foldAroundMidpoint (0 ..< 2 ^ d)))

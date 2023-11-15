@@ -15,12 +15,11 @@ common shared
     -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns
     -Wmissing-deriving-strategies -Wunused-foralls -Wunused-foralls
     -fprint-explicit-foralls -fprint-explicit-kinds
+    -funbox-small-strict-fields
 
   mixins:
     base hiding (Prelude),
-    base (Prelude as BasePrelude),
-    relude (Relude as Prelude, Relude.Container.One),
-    relude
+    base (Prelude as BasePrelude)
 
   default-extensions:
     NoStarIsType
@@ -99,7 +98,6 @@ common shared
     , free
     , generic-lens
     , hashable
-    , IntervalMap
     , kan-extensions
     , lens
     , linear
@@ -146,6 +144,7 @@ library
     Data.Function.Vector
     Data.MinMax
     Data.Tuple.Ordered
+    Prelude
     Tourney.Algebra
     Tourney.Algebra.Builder
     Tourney.Algebra.Unified
@@ -157,8 +156,14 @@ library
     Tourney.IOResultsProvider
     Tourney.Match
     Tourney.Match.Matrix
+    Tourney.Match.Matrix2
     Tourney.SortingNetwork
+    Tourney.Stream
     Tourney.UI.Main
+    Tourney.VM
+    Tourney.VM.Code
+    Tourney.VM.Compile
+    Tourney.VM.Interpret
 
 test-suite test
   import:             shared

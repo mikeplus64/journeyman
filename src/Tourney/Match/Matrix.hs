@@ -1,4 +1,6 @@
-{-# OPTIONS_GHC -funbox-strict-fields #-}
+{-# LANGUAGE MonadComprehensions #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -funbox-strict-fields -Wno-partial-type-signatures #-}
 
 -- |
 -- The goal here is to come up with a compact data structure for representing
@@ -18,129 +20,142 @@
 -- players to players, where (-1) is used to denote if a player did not have a
 -- match.
 module Tourney.Match.Matrix (
-  MRoundMatchMatrix,
-  IORoundMatchMatrix,
+  RoundMatchMatrix,
   createRoundMatchMatrix,
-  readMatches,
-  pendingMatchCount,
-  readMatchResult,
+  clearMatchMatrix,
   addMatch,
   setMatchResult,
-  freezeMatches,
+  readMatchResult,
+  readMatchups,
+  readPlayerResult,
+  pendingMatchCount,
+  pendingMatchesWithinCount,
+  awaitZeroPendingMatches,
 ) where
 
-import Control.Lens
-import Control.Monad.Primitive (MonadPrim)
-import Control.Monad.ST.Strict
+import Control.Concurrent.STM (retry)
+import Control.Concurrent.STM.TArray
+import Data.Array.MArray
 import Data.Generics.Labels ()
-import Data.Primitive.PrimVar
 import Data.Vector qualified as V
 import Data.Vector.Mutable qualified as VM
-import Data.Vector.Unboxed qualified as U
-import Data.Vector.Unboxed.Mutable qualified as UM
-import Tourney.Algebra.Unified (SortMethod (..), Sorter (..))
 import Tourney.Common
 import Tourney.Match
 
-data RoundMatchMatrix = RMM
-  { matchups :: !(U.Vector Player)
-  , results :: !(V.Vector (Maybe Result))
-  }
-
-getMatchResult :: RoundMatchMatrix -> Match -> Maybe Result
-getMatchResult RMM{results} (Match p1 _p2) = results ^? ix p1 . _Just
-
--- NOTE see below for the construction of 'RMM'; it should be correct by
--- construction, so we don't need to check p1 is not p2, or check that the p2
--- here is the same p2 as in the 'matchups' vector
-
 --------------------------------------------------------------------------------
--- Mutable interface
 
-type IORoundMatchMatrix = MRoundMatchMatrix RealWorld
-
-data MRoundMatchMatrix s = MutRMM
-  { matchups :: !(UM.MVector s (Player, Int))
-  , sorters :: !(VM.MVector s Sorter)
-  , results :: !(VM.MVector s (Maybe Result))
-  , matchupCount :: !(PrimVar s Int)
-  , resultsCount :: !(PrimVar s Int)
+data Matchup = Matchup
+  { match :: {-# UNPACK #-} !Match
+  , result :: {-# UNPACK #-} !(TVar (Maybe Result))
   }
+  deriving stock (Eq, Generic)
 
-readMatches :: MonadPrim s m => MRoundMatchMatrix s -> m (V.Vector (Match, Maybe Result))
-readMatches MutRMM{matchups = matchups_, results = results_} = do
-  matchups <- U.unsafeFreeze matchups_
-  results <- V.unsafeFreeze results_
-  -- these unsafeFreezes are fine because we're not doing any writing. Of
-  -- course, this is not thread safe, but it wouldn't be if it were mutable
-  -- anyway.
-  let !count = U.length matchups
-  accum <- VM.new count
-  evaluatingStateT MS{visitedPlayers = mempty, count = 0} $ do
-    U.iforM_ matchups \player1 player2 -> do
-      visited <- use (#visitedPlayers . contains player2) -- Note that player2 >= player1 always
-      when (not visited && player1 >= 0 && player2 >= 0 && player1 /= player2) do
-        #visitedPlayers . contains player1 .= True
-        #visitedPlayers . contains player2 .= True
-        let match = Match player1 player2
-        let result = results ^? ix player1 . _Just
-        i <- #count <<+= 1
-        VM.write accum i (match, result)
-  V.unsafeFreeze (VM.take count accum)
-
--- internal state
-data MS = MS
-  { visitedPlayers :: !IntSet
-  , count :: !Int
+data RoundMatchMatrix = RMM
+  { matchups :: !(TArray Player (Maybe Matchup))
+  , matchCount :: !(TVar Int)
+  , pendingCount :: !(TVar Int)
+  -- ^ A 'TVar' that can be listened to for changes
   }
   deriving stock (Generic)
 
-createRoundMatchMatrix :: MonadPrim s m => PlayerCount -> m (MRoundMatchMatrix s)
+createRoundMatchMatrix :: PlayerCount -> STM RoundMatchMatrix
 createRoundMatchMatrix count = do
-  matchups <- UM.replicate count (-1)
-  matchupCount <- newPrimVar 0
-  results <- VM.replicate count Nothing
-  resultsCount <- newPrimVar 0
-  pure MutRMM{matchups, matchupCount, results, resultsCount}
+  matchups <- newArray (0, count - 1) Nothing
+  matchCount <- newTVar 0
+  pendingCount <- newTVar 0
+  pure RMM{matchups, matchCount, pendingCount}
 
--- | Get the number of matches that are pending a result _within the
--- 'MRoundMatchMatrix'_. Only matches that are registered first with 'addMatch'
--- are counted.
-pendingMatchCount :: MonadPrim s m => MRoundMatchMatrix s -> m Int
-pendingMatchCount MutRMM{matchupCount, resultsCount} = do
-  m <- readPrimVar matchupCount
-  r <- readPrimVar resultsCount
-  pure (max 0 (m - r))
-
--- | Read the match that a player is in, if any
-readMatchResult :: MonadPrim s m => MRoundMatchMatrix s -> Player -> m (Maybe (Match, Maybe Result))
-readMatchResult MutRMM{matchups, results} me = runMaybeT do
-  Just other <- UM.readMaybe matchups me
-  let p1 = min me other
-  let p2 = max me other
-  guard (p1 >= 0 && p2 >= 0 && p1 /= p2)
-  r <- VM.readMaybe results p1
-  pure (Match p1 p2, join r)
+-- | Clear the match matrix, returning the old state
+clearMatchMatrix :: RoundMatchMatrix -> Focus -> STM ()
+clearMatchMatrix RMM{matchups, pendingCount, matchCount} focus = do
+  forM_ (focusStart focus ..< focusEnd focus) \i -> do
+    cur <- readArray matchups i
+    forM_ cur \Matchup{match = Match p1 p2} -> do
+      writeArray matchups p1 Nothing
+      writeArray matchups p2 Nothing
+      modifyTVar' pendingCount (subtract 1)
+      modifyTVar' matchCount (subtract 1)
 
 -- | Register a match in this 'MRoundMatchMatrix'.
-addMatch :: MonadPrim s m => MRoundMatchMatrix s -> Match -> m ()
-addMatch MutRMM{matchups, matchupCount, results} (Match p1 p2) = do
-  curP2 <- UM.read matchups p1
-  when (curP2 >= 0) (error "addMatch: match is already written to")
-  modifyPrimVar matchupCount (+ 1)
-  UM.write matchups p1 p2
-  VM.write results p1 Nothing
+addMatch :: RoundMatchMatrix -> Match -> STM (TVar (Maybe Result))
+addMatch RMM{matchups, pendingCount, matchCount} match@(Match p1 p2) = do
+  curMatch1 <- readArray matchups p1
+  curMatch2 <- readArray matchups p2
+  when (isJust curMatch1 || isJust curMatch2) (error "addMatch: match is already written to")
+  result <- newTVar Nothing
+  let !matchup = Just Matchup{match, result}
+  writeArray matchups p1 matchup
+  writeArray matchups p2 matchup
+  modifyTVar' matchCount (+ 1)
+  modifyTVar' pendingCount (+ 1)
+  pure result
 
 -- | Set the result for a match. The match must not already be written to, and
 -- have been registered already with 'addMatch'
-setMatchResult :: MonadPrim s m => MRoundMatchMatrix s -> Match -> Result -> m ()
-setMatchResult MutRMM{matchups, results, resultsCount} (Match p1 p2) result = do
-  curP2 <- UM.read matchups p1
-  when (curP2 /= p2) (error "setMatchResult: mismatched matchups!")
-  curResult <- VM.read results p1
+setMatchResult :: RoundMatchMatrix -> Match -> Result -> STM ()
+setMatchResult RMM{matchups, pendingCount} (Match p1 p2) result = do
+  curMatch1 <- readArray matchups p1
+  curMatch2 <- readArray matchups p2
+  when (isNothing curMatch1) (error "setMatchResult: no such match")
+  when (curMatch1 /= curMatch2) (error "setMatchResult: mismatched matchups")
+  let resultVar = curMatch1 ^?! _Just . #result
+  curResult <- readTVar resultVar
   when (isJust curResult) (error "setMatchResult: already have a result for this match")
-  modifyPrimVar resultsCount (+ 1)
-  VM.write results p1 (Just result)
+  writeTVar resultVar (Just result)
+  modifyTVar' pendingCount (subtract 1)
 
-freezeMatches :: MonadPrim s m => MRoundMatchMatrix s -> m RoundMatchMatrix
-freezeMatches MutRMM{matchups, results} = RMM <$> U.freeze matchups <*> V.freeze results
+-- | Read the match that a player is in, if any
+readPlayerResult :: RoundMatchMatrix -> Player -> STM (Maybe (Match, Maybe Result))
+readPlayerResult RMM{matchups} me = runMaybeT do
+  (_, len) <- lift (getBounds matchups)
+  guard (not (0 <= me && me < len))
+  Just Matchup{match, result} <- lift (readArray matchups me)
+  r <- lift (readTVar result)
+  pure (match, r)
+
+-- | Read the match that a player is in, if any
+readMatchResult :: RoundMatchMatrix -> Match -> STM (Maybe Result)
+readMatchResult RMM{matchups} m@(Match p1 _p2) = runMaybeT do
+  Just Matchup{match, result} <- lift (readArray matchups p1)
+  guard (m == match)
+  MaybeT (readTVar result)
+
+data ReadMatchesState = RMS
+  {visited :: !IntSet, i :: !Int}
+  deriving stock (Generic)
+
+readMatchups :: RoundMatchMatrix -> STM (Vector Matchup)
+readMatchups RMM{matchups} = do
+  ms :: Array Player (Maybe Matchup) <- freeze matchups
+  !vec <- pure $ V.create do
+    let state0 = RMS{visited = mempty, i = 0}
+    buffer <- VM.new (snd (arrayBounds matchups))
+    evaluatingStateT state0 do
+      forMOf_ (each . _Just) ms \m@Matchup{match = Match p1 p2} -> do
+        visited <- use #visited
+        unless (visited ^. contains p1 || visited ^. contains p2) do
+          #visited . contains p1 .= True
+          #visited . contains p2 .= True
+          i <- #i <<+= 1
+          VM.write buffer i m
+    pure buffer
+  pure vec
+
+-- | Get the current pending match count. Using STM you can listen to this to
+-- easily block the current thread until 0 pending matches is reached. See
+-- 'awaitNoPendingMatches'
+pendingMatchCount :: RoundMatchMatrix -> STM Int
+pendingMatchCount RMM{pendingCount} = readTVar pendingCount
+
+-- | Get the current pending match count. Using STM you can listen to this to
+-- easily block the current thread until 0 pending matches is reached. See
+-- 'awaitNoPendingMatches'
+pendingMatchesWithinCount :: RoundMatchMatrix -> Focus -> STM Int
+pendingMatchesWithinCount rmm focus = do
+  pendings <- readPendingMatches rmm
+  pure $! length [p | p <- pendings, validateMatch focus p]
+
+awaitZeroPendingMatches :: RoundMatchMatrix -> STM ()
+awaitZeroPendingMatches RMM{pendingCount} = do
+  count <- readTVar pendingCount
+  unless (count == 0) retry

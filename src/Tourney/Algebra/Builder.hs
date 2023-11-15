@@ -2,19 +2,20 @@ module Tourney.Algebra.Builder (
   Builder,
 
   -- * Overloaded constructors
-  AsSteps (..),
-  AsRound (..),
-  AsMatch (..),
 
   -- * Steps
+  AsSteps (..),
   Steps,
-  steps,
   round_,
   rounds_,
 
   -- * Rounds
+  AsRound (..),
   Round,
   match,
+
+  -- * Matches
+  AsMatch (..),
 
   -- * Basic syntax
   list,
@@ -47,7 +48,6 @@ import Control.Monad.Trans.Accum
 import Control.Monad.Writer
 import Data.DList (DList)
 import Data.DList qualified as DL
-import Data.Vector (Vector)
 import Tourney.Algebra.Unified as U
 import Tourney.Common
 import Tourney.Match
@@ -188,7 +188,7 @@ instance (AsRound a r, r ~ ()) => AsRound (Focus -> a) r where
 ----------------------------------------
 
 class AsMatch m where toMatch :: m -> Match
-instance (x ~ Int, y ~ Int) => AsMatch (x, y) where toMatch = uncurry Match
+instance (x ~ Slot, y ~ Slot) => AsMatch (x, y) where toMatch = uncurry Match
 instance AsMatch Match where toMatch = id
 
 -- | Add a match to the round
@@ -238,7 +238,7 @@ getPlayerCount = Builder $ ContT \f ->
   add (DL.singleton (ByPlayerCount (mergeAccumT . f)))
 
 -- | Set the focus of the inner builder
-withFocus :: Merge t => Int -> Int -> Builder t a a -> Builder t r ()
+withFocus :: Merge t => Slot -> Int -> Builder t a a -> Builder t r ()
 withFocus focusStart focusLength =
   withFocii (const [Focus{focusStart, focusLength}])
 
@@ -269,17 +269,17 @@ divideInto denom builder = do
   let (m, r) = quotRem count denom
   let groupSize = m + r
   overlays_
-    [ withFocus (groupNo * groupSize) groupSize builder
+    [ withFocus (Slot (groupNo * groupSize)) groupSize builder
     | groupNo <- [0 .. denom - 1]
     ]
 
 -- | Fold a list of players together around a midpoint of the list.
-foldAround :: Int -> [Player] -> [Match]
+foldAround :: Int -> [Slot] -> [Match]
 foldAround midpoint players = take midpoint (zipWith Match players (reverse players))
 
 -- | Fold a list of players together around _the_ midpoint of the list. You
 -- should ensure the input list has an even number of players.
-foldAroundMidpoint :: [Player] -> [Match]
+foldAroundMidpoint :: [Slot] -> [Match]
 foldAroundMidpoint players = take (length players `div` 2) (zipWith Match players (reverse players))
 
 -- | Inspect the inner builder, for, e.g., matches

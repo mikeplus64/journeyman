@@ -17,14 +17,12 @@ module Tourney.Algebra.Unified (
   KnownDepth (..),
 ) where
 
-import Data.Default
-import Data.Function.Known (type (~>))
 import Data.Generics.Labels ()
 import Data.Typeable (cast)
 import Text.Show qualified as Show
 import Tourney.Common
 import Tourney.Match
-import Prelude hiding (sequence)
+import Prelude hiding (Empty, sequence)
 
 -- | A description of a tournament. The type-parameter gives an upper-bound on
 -- how many rounds this tournament has. It also ensures that the "spine" of a
@@ -63,18 +61,6 @@ instance Show (Tournament t) where
     Empty -> Show.showString "Empty"
     LiftTMany t -> Show.showParen True (Show.showString "Lt " . Show.showsPrec 9 t)
     _ -> Show.showString "_"
-
-data SortMethod
-  = WinnerTakesHigh
-  | -- | Award points and use that to sort the results in the end
-    PointsAward
-  deriving stock (Show, Eq)
-
-instance Default SortMethod where
-  def = WinnerTakesHigh
-
-data Sorter = Sorter {sorterFocus :: !Focus, sorterMethod :: !SortMethod}
-  deriving stock (Show, Eq, Generic)
 
 data Mod
   = SetFocus !(Focus -> [Focus])

@@ -623,7 +623,8 @@ add a primitive to change the sorting method, round-robin tournaments are "pure"
 **** Piped
 **** Interactive
 
-* Usage of the Library
+
+* Tutorial
 Each to have a short description, a visualisation of the generated sorting
 network, and the code required to describe them.
 ** Specification of Common Formats

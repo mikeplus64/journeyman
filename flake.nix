@@ -32,20 +32,12 @@
             # (Local packages are added automatically)
             /*
             aeson.source = "1.5.0.0" # Hackage version
-            shower.source = inputs.shower; # Flake input
             */
           };
 
           # Add your package overrides here
           settings = {
-            journeyman = {
-              check = true;
-            };
-            /*
-            aeson = {
-              check = false;
-            };
-            */
+            journeyman.check = true;
           };
 
           # Development shell configuration

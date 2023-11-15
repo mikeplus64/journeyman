@@ -41,6 +41,9 @@ module Data.Dependency (
   null,
   pureVector,
   pureList,
+  Group (..),
+  group,
+  groupr,
 
   -- * Request monads
   MonadRequest (..),
@@ -139,7 +142,7 @@ instance x ~ () => One (StreamM m a x) where
 -- this project are in fact pure. So the actual type should be like @ Either
 -- (Maybe (a, Stream m a x)) (m (Maybe (a, StreamM m a x))) @ which is obviously
 -- much more unwieldy; hence a custom type.
-pop :: Monad m => StreamM m a x -> Pop m a x
+pop :: Functor m => StreamM m a x -> Pop m a x
 pop = \case
   Got x xs -> Pop x xs
   Cat l r -> go l r
@@ -371,6 +374,30 @@ instance Foldable (Stream m) where
 
 --------------------------------------------------------------------------------
 -- Grouping elements of a stream
+
+-- | Optimise the representation of a stream by grouping consecutive pure
+-- elements through a monoid, and finalising that at the end
+groupr
+  :: forall m c b a x
+   . (Monoid b, Functor m)
+  => (a -> b)
+  -> (b -> c)
+  -> StreamM m a x
+  -> StreamM m c x
+groupr singleton finalise = go0 . pop
+  where
+    -- two loops to avoid any extraneous yields of 'mempty'
+    go0 :: Pop m a x -> StreamM m c x
+    go0 = \case
+      Pop x xs -> go (singleton x) (pop xs)
+      PopWait w -> Wait (fmap go0 w)
+      PopDone x -> Done x
+
+    go :: b -> Pop m a x -> StreamM m c x
+    go !acc = \case
+      Pop x xs -> go (acc <> singleton x) (pop xs)
+      PopWait w -> Got (finalise acc) (Wait (fmap go0 w))
+      PopDone x -> Done x
 
 data Group a
   = GroupSplit !a !a

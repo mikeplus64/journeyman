@@ -6,23 +6,25 @@ module Tourney.Match (
   createMatch,
   createCheckedMatch,
   validateMatch,
-  Points (..),
-  MatchResult (..),
-  Result (..),
-  didPlayer1Win,
-  didPlayer2Win,
   likelyWinner,
   likelyLoser,
+
+  -- ** Results
+  MatchResult (..),
+  Points (..),
+  Result (..),
+  didSlot1Win,
+  didSlot2Win,
   winner,
   loser,
 ) where
 
-import Control.Lens
-import Data.Generics.Labels ()
-import Data.Generics.Product.Positions (position)
+import Data.Ix qualified as Ix
 import Data.Vector.Unboxed qualified as U
 import GHC.IsList (IsList (..))
-import Tourney.Common (Focus (..), Player, Slot)
+import GHC.Ix qualified as Ix
+import Text.Show (Show (showsPrec))
+import Tourney.Common (Focus (..), Slot, focusContains)
 
 --------------------------------------------------------------------------------
 -- Points
@@ -85,10 +87,28 @@ alignedPointsBinOp f (Points xs) (Points ys) = Points (uncurry (U.zipWith f) (en
 --
 -- It is a runtime error to construct a match using the same player twice.
 -- type Match = OrdPair Player
-data Match = Match_ Slot Slot
-  deriving stock (Show, Eq, Ord, Generic)
+data Match = Match_ !Slot !Slot
+  deriving stock (Eq, Ord, Generic)
 
-createMatch :: Player -> Player -> Match
+instance Ix.Ix Match where
+  {-# INLINE range #-}
+  {-# INLINE index #-}
+  {-# INLINE unsafeIndex #-}
+  {-# INLINE inRange #-}
+  {-# INLINE rangeSize #-}
+  {-# INLINE unsafeRangeSize #-}
+  range (Match_ a0 b0, Match_ a1 b1) = uncurry Match_ <$> Ix.range ((a0, b0), (a1, b1))
+  index (Match_ a0 b0, Match_ a1 b1) (Match_ i j) = Ix.index ((a0, b0), (a1, b1)) (i, j)
+  unsafeIndex (Match_ a0 b0, Match_ a1 b1) (Match_ i j) = Ix.unsafeIndex ((a0, b0), (a1, b1)) (i, j)
+  inRange (Match_ a0 b0, Match_ a1 b1) (Match_ i j) = Ix.inRange ((a0, b0), (a1, b1)) (i, j)
+  rangeSize (Match_ a0 b0, Match_ a1 b1) = Ix.rangeSize ((a0, b0), (a1, b1))
+  unsafeRangeSize (Match_ a0 b0, Match_ a1 b1) = Ix.unsafeRangeSize ((a0, b0), (a1, b1))
+
+instance Show Match where
+  showsPrec p (Match a b) = showsPrec p (a, b)
+
+-- | Create a match, throwing an error if it has negative or equal slots
+createMatch :: Slot -> Slot -> Match
 createMatch a b
   | not (a >= 0 && b >= 0) = error ("invalid match due to negative indices: " <> show (a, b))
   | otherwise = case compare a b of
@@ -96,22 +116,25 @@ createMatch a b
       GT -> Match_ b a
       EQ -> error ("invalid match due to non-unique players " <> show (a, b))
 
-createCheckedMatch :: Focus -> Player -> Player -> Maybe Match
-createCheckedMatch Focus{focusStart, focusLength} a b = do
-  guard (a >= 0 && b >= 0)
-  guard (a /= b)
-  let (l, h) = if a < b then (a, b) else (b, a)
-  guard (l >= focusStart && h < focusStart + focusLength)
-  pure (Match_ l h)
+-- | Create a match within the given focus, returning 'Nothing' if it has negative or equal slots
+{-# INLINE createCheckedMatch #-}
+createCheckedMatch :: Focus -> Slot -> Slot -> Maybe Match
+createCheckedMatch f a0 b0 = do
+  m@(Match_ a b) <- case compare a0 b0 of
+    LT -> Just (Match_ a0 b0)
+    GT -> Just (Match_ b0 a0)
+    EQ -> Nothing
+  guard (focusContains f a && focusContains f b)
+  pure m
 
 validateMatch :: Focus -> Match -> Bool
 validateMatch f (Match_ a b) = isJust (createCheckedMatch f a b)
 
-likelyWinner, likelyLoser :: Lens' Match Player
+likelyWinner, likelyLoser :: Lens' Match Slot
 likelyWinner = position @1
 likelyLoser = position @2
 
-pattern Match :: Player -> Player -> Match
+pattern Match :: Slot -> Slot -> Match
 pattern Match a b <- Match_ a b
   where
     Match a b = createMatch a b
@@ -127,27 +150,27 @@ data MatchResult = MatchResult
   }
   deriving stock (Show, Eq, Ord, Generic)
 
-didPlayer1Win :: MatchResult -> Maybe Bool
-didPlayer1Win MatchResult{result = Result score1 score2} =
+didSlot1Win :: MatchResult -> Maybe Bool
+didSlot1Win MatchResult{result = Result score1 score2} =
   case score1 `compare` score2 of
     LT -> Just True
     EQ -> Nothing
     GT -> Just False
 
-didPlayer2Win :: MatchResult -> Maybe Bool
-didPlayer2Win MatchResult{result = Result score1 score2} =
+didSlot2Win :: MatchResult -> Maybe Bool
+didSlot2Win MatchResult{result = Result score1 score2} =
   case score2 `compare` score1 of
     LT -> Just True
     EQ -> Nothing
     GT -> Just False
 
-winner :: MatchResult -> Maybe (Player, Points)
-winner m = didPlayer1Win m <&> getResult m
+winner :: MatchResult -> Maybe (Slot, Points)
+winner m = didSlot1Win m <&> getResult m
 
-loser :: MatchResult -> Maybe (Player, Points)
-loser m = didPlayer2Win m <&> getResult m . not
+loser :: MatchResult -> Maybe (Slot, Points)
+loser m = didSlot2Win m <&> getResult m . not
 
-getResult :: MatchResult -> Bool -> (Player, Points)
+getResult :: MatchResult -> Bool -> (Slot, Points)
 getResult m didP1Win =
   if didP1Win
     then (m ^. #match . position @1, m ^. #result . position @1)
@@ -162,9 +185,9 @@ ensureSameLength xs ys
   | U.length xs == U.length ys = (xs, ys)
   | otherwise =
       let
-        prefixed v = U.replicate (len - U.length v) 0 <> v
+        addPrefix v = U.replicate (len - U.length v) 0 <> v
         !len = max (U.length xs) (U.length ys)
-        !pxs = prefixed xs
-        !pys = prefixed ys
+        !pxs = addPrefix xs
+        !pys = addPrefix ys
       in
         (pxs, pys)

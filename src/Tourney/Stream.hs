@@ -13,8 +13,8 @@ module Tourney.Stream (
   -- * Compilation
 
   -- ** Creating a compiler environment
-  CompileEnv,
-  createCompileEnv,
+  StreamEnv,
+  createStreamEnv,
   withGetStandings,
   noStandings,
 
@@ -36,24 +36,23 @@ module Tourney.Stream (
   runInspection,
 ) where
 
-import Control.Lens hiding (Empty)
 import Control.Monad.Except
-import Data.Default
 import Data.Dependency (StreamM)
 import Data.Dependency qualified as S
 import Data.These
-import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Tourney.Algebra.Unified
 import Tourney.Common
 import Tourney.Match
 import VectorBuilder.Builder qualified as VB
 import VectorBuilder.Vector qualified as VB
+import Prelude hiding (Empty)
 
-data CompileEnv m = CompileEnv
-  { getStandings :: Focus -> m Standings
-  , focus :: Focus
+data StreamEnv m = StreamEnv
+  { getStandings :: !(Focus -> m Standings)
+  , focus :: {-# UNPACK #-} !Focus
   }
+  deriving stock (Generic)
 
 data CompileError
   = InvalidMatch {focus :: !Focus, match :: !Match}
@@ -66,7 +65,7 @@ type Compiled = Either (NonEmpty CompileError)
 
 -- | A tournament is that has been compiled into a stream of rounds
 newtype RoundStream m = RoundStream
-  { unRoundStream :: CompileEnv m -> StreamM m (Tournament TOne) ()
+  { unRoundStream :: StreamEnv m -> StreamM m (Tournament TOne) ()
   }
 
 err :: CompileError -> Compiled a
@@ -75,14 +74,14 @@ err = Left . (:| [])
 -- | Compile a tournament into a stream of rounds.
 --
 -- Since we have paramaterised 'Tournament' by number of rounds, forcing it to
--- be @ 1 @ ensures that each individual tournament is only one round.
+-- be @ TOne @ ensures that each individual tournament is only one round.
 -- Meanwhile, since the structure of a stream does not allow for two rounds to
 -- yield into the same round index, each individual round is unique.
 --
 -- In order to accomplish this, we just need to know upfront the 'PlayerCount',
 -- and also a way to stream results in.
 createRoundStream :: forall m a. Monad m => Tournament a -> RoundStream m
-createRoundStream t0 = RoundStream \CompileEnv{getStandings, focus = focus0} ->
+createRoundStream t0 = RoundStream \StreamEnv{getStandings, focus = focus0} ->
   let
     go :: Tournament x -> Reader Focus (StreamM m (Tournament TOne) ())
     go = \case
@@ -91,6 +90,7 @@ createRoundStream t0 = RoundStream \CompileEnv{getStandings, focus = focus0} ->
       Modify m t ->
         -- createMatchStream will interpret this
         S.map (Modify m) <$> go t
+      -- "Unlift" the overlay operation to the inside of the tournament
       Overlay a b -> do
         !a' <- go a
         !b' <- go b
@@ -118,13 +118,13 @@ createRoundStream t0 = RoundStream \CompileEnv{getStandings, focus = focus0} ->
 -- | A round of a tournament that has been compiled into a stream of matches,
 -- grouped by their sorting method
 newtype MatchStream m = MatchStream
-  { unMatchStream :: CompileEnv m -> StreamM m (Compiled (Sorter, StreamM m (Compiled Match) ())) ()
+  { unMatchStream :: StreamEnv m -> StreamM m (Compiled (Sorter, StreamM m (Compiled Match) ())) ()
   }
 
 -- | Create a stream of matches from a round of a tournament. (Note that
 -- @Tournament 1@ indicates a single round)
 createMatchStream :: forall m. Monad m => Tournament TOne -> MatchStream m
-createMatchStream t0 = MatchStream \CompileEnv{getStandings, focus = focus0} ->
+createMatchStream t0 = MatchStream \StreamEnv{getStandings, focus = focus0} ->
   let
     go
       :: Tournament TOne
@@ -142,15 +142,15 @@ createMatchStream t0 = MatchStream \CompileEnv{getStandings, focus = focus0} ->
           Sorter focus _ <- ask
           let focii = getFocii focus
           results <- forM focii \f -> do
-            unless (f `isWithin` focus) $
+            unless (f `focusWithin` focus) $
               lift (S.yield (err InvalidFocus{outer = focus, inner = f}))
             local (#sorterFocus .~ f) (go t)
           pure (fold results)
         SetOffset off -> do
           outer <- view #sorterFocus
-          local (#sorterFocus . #focusStart +~ off) do
+          local (#sorterFocus . #focusStart +~ Slot off) do
             inner <- view #sorterFocus
-            unless (inner `isWithin` outer) $
+            unless (inner `focusWithin` outer) $
               lift (S.yield (err InvalidFocus{outer, inner}))
             go t
         SetSortMethod method -> do
@@ -185,39 +185,27 @@ createMatchStream t0 = MatchStream \CompileEnv{getStandings, focus = focus0} ->
 -- smaller synonym of "tournament".
 data Tourney m = Tourney
   { tourneyStream :: StreamM m (MatchStream m) ()
-  , tourneyCompileEnv :: CompileEnv m
+  , tourneyStreamEnv :: StreamEnv m
   }
 
 -- | Compile a tournament into a 'Tourney'.
-createTourney :: forall m a. Monad m => CompileEnv m -> Tournament a -> Tourney m
+createTourney :: forall m a. Monad m => StreamEnv m -> Tournament a -> Tourney m
 createTourney cenv t =
   Tourney
     { tourneyStream =
         let RoundStream rounds = createRoundStream @m t
         in  S.map (createMatchStream @m) (rounds cenv)
-    , tourneyCompileEnv = cenv
+    , tourneyStreamEnv = cenv
     }
 
 noStandings :: Monad m => Focus -> m Standings
-noStandings Focus{focusLength} = do
-  () <- traceM "WARNING: noStandings called"
-  pure (createInitialStandings focusLength)
+noStandings Focus{focusLength} = pure (createInitialStandings focusLength)
 
-createCompileEnv :: Monad m => PlayerCount -> CompileEnv m
-createCompileEnv count = CompileEnv{focus = Focus 0 count, getStandings = noStandings}
+createStreamEnv :: Monad m => PlayerCount -> StreamEnv m
+createStreamEnv count = StreamEnv{focus = Focus 0 count, getStandings = noStandings}
 
-withGetStandings :: (Focus -> m Standings) -> CompileEnv m -> CompileEnv m
+withGetStandings :: (Focus -> m Standings) -> StreamEnv m -> StreamEnv m
 withGetStandings fn c = c{getStandings = fn}
-
---------------------------------------------------------------------------------
--- Generalisations
---
--- These types are useful for putting a tournament stream type into a container,
--- without losing any generality
-
-newtype Tourney_ = Tourney_ (forall m. Monad m => Tourney m)
-newtype RoundStream_ = RoundStream_ (forall m. Monad m => RoundStream m)
-newtype MatchStream_ = MatchStream_ (forall m. Monad m => MatchStream m)
 
 --------------------------------------------------------------------------------
 
@@ -228,7 +216,7 @@ newtype MatchStream_ = MatchStream_ (forall m. Monad m => MatchStream m)
 type TourneyStream m = StreamM m (StreamM m (Compiled (Sorter, StreamM m (Compiled Match) ())) ()) () -- Phew!
 
 runTourney :: Monad m => Tourney m -> TourneyStream m
-runTourney Tourney{tourneyStream, tourneyCompileEnv = cenv} =
+runTourney Tourney{tourneyStream, tourneyStreamEnv = cenv} =
   S.map (\(MatchStream ms) -> ms cenv) tourneyStream
 
 --------------------------------------------------------------------------------
@@ -298,7 +286,7 @@ runInspection Inspection{standingsFn = getStandings, playerCount = count, query}
                     modify' (<> VB.singleton (sorter, matches))
             modify' (<> VB.singleton here)
   where
-    compiler0 = CompileEnv{getStandings, focus = Focus 0 count}
+    compiler0 = StreamEnv{getStandings, focus = Focus 0 count}
     roundStream = tourneyStream (createTourney compiler0 t)
     hoist2 :: (MonadTrans t1, MonadTrans t2, Monad m, Monad (t2 m)) => StreamM m a r -> StreamM (t1 (t2 m)) a r
     hoist2 = S.hoistT . S.hoistT
