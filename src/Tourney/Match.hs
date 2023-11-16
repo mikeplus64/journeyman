@@ -2,12 +2,13 @@
 
 module Tourney.Match (
   -- * Matches
-  Match (Match),
+  Match (Match_, Match),
   createMatch,
   createCheckedMatch,
   validateMatch,
   likelyWinner,
   likelyLoser,
+  matchIsWithin,
 
   -- ** Results
   MatchResult (..),
@@ -78,15 +79,15 @@ alignedPointsBinOp f (Points xs) (Points ys) = Points (uncurry (U.zipWith f) (en
 --------------------------------------------------------------------------------
 -- Matches
 
--- | The basic type for a match is a pair of players. The 'OrdPair' type ensures
+-- | The basic type for a match is a pair of players. The 'Match' type ensures
 -- by construction that the "lower" player always takes the first slot of the
--- 'OrdPair', and the higher the second.
+-- 'Match', and the higher the second.
 --
 -- Many functions in this library are overloaded so that you can represent
 -- matches as ordinary Haskell tuples.
 --
 -- It is a runtime error to construct a match using the same player twice.
--- type Match = OrdPair Player
+-- type Match = Match Player
 data Match = Match_ !Slot !Slot
   deriving stock (Eq, Ord, Generic)
 
@@ -120,12 +121,15 @@ createMatch a b
 {-# INLINE createCheckedMatch #-}
 createCheckedMatch :: Focus -> Slot -> Slot -> Maybe Match
 createCheckedMatch f a0 b0 = do
-  m@(Match_ a b) <- case compare a0 b0 of
+  m <- case compare a0 b0 of
     LT -> Just (Match_ a0 b0)
     GT -> Just (Match_ b0 a0)
     EQ -> Nothing
-  guard (focusContains f a && focusContains f b)
+  guard (m `matchIsWithin` f)
   pure m
+
+matchIsWithin :: Match -> Focus -> Bool
+matchIsWithin (Match_ a b) f = focusContains f a && focusContains f b
 
 validateMatch :: Focus -> Match -> Bool
 validateMatch f (Match_ a b) = isJust (createCheckedMatch f a b)

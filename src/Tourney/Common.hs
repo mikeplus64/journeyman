@@ -10,9 +10,10 @@ module Tourney.Common (
   Player (..),
   Slot (..),
   RoundNo (..),
-  Standings (..),
+  Standings,
   createInitialStandings,
   modifyStandings,
+  vectorToStandings,
 
   -- ** Ranges
   (..<),
@@ -110,11 +111,15 @@ instance U.Unbox RoundNo
 newtype Standings = StandingsBySlot (U.Vector Player)
 
 type instance Index Standings = Slot
-type instance IxValue Standings = Slot
-instance Ixed Standings where ix (Slot i) = coerced . ix @(U.Vector Int) i . coerced
+type instance IxValue Standings = Player
+instance Ixed Standings where
+  ix (Slot i) = coerced . ix @(U.Vector Int) i . coerced
 
 createInitialStandings :: PlayerCount -> Standings
 createInitialStandings count = StandingsBySlot (U.enumFromTo 0 (Player count - 1))
+
+vectorToStandings :: VG.Vector v Player => v Player -> Standings
+vectorToStandings = StandingsBySlot . VG.convert
 
 modifyStandings :: Standings -> (forall s. U.MVector s Player -> ST s ()) -> Standings
 modifyStandings (StandingsBySlot v) f = StandingsBySlot (U.modify f v)
@@ -138,7 +143,7 @@ focusWithin :: Focus -> Focus -> Bool
 focusWithin (Focus (Slot a) l) (Focus (Slot b) n) = b >= a && (b + n) <= (a + l)
 
 focusContains :: Focus -> Slot -> Bool
-focusContains f s = focusStart f >= s && s <= focusEnd f
+focusContains f s = focusStart f <= s && s <= focusEnd f
 
 --------------------------------------------------------------------------------
 -- Sorting methods

@@ -19,9 +19,9 @@ instance One (MinMax a) where
   type OneItem (MinMax a) = a
   one = toMinMax
 
-minMax :: MinMax a -> Maybe (a, a)
-minMax (MinMax min' max') = Just (min', max')
-minMax MinMaxEmpty = Nothing
+getMinMax :: MinMax a -> Maybe (a, a)
+getMinMax (MinMax min' max') = Just (min', max')
+getMinMax MinMaxEmpty = Nothing
 
 toMinMax :: a -> MinMax a
 toMinMax a = MinMax a a

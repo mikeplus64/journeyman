@@ -26,6 +26,10 @@ module Prelude (
   -- * Extra Modules
   module Control.Monad.ST.Strict,
 
+  -- ** Semigroups
+  Max (..),
+  Min (..),
+
   -- ** Default
   module Data.Default,
 
@@ -82,11 +86,12 @@ import Data.Default
 import Data.Generics.Labels ()
 import Data.Generics.Product.Positions (position)
 import Data.Ix (Ix)
+import Data.Semigroup (Max (..), Min (..))
 import Data.Vector (Vector)
 import Data.Vector.Mutable (MVector)
 import Data.Vector.Unboxed qualified as U (Vector)
 import Data.Vector.Unboxed.Mutable qualified as UM (MVector)
-import PyF
+import PyF (fmt, fmtTrim)
 import Relude.Applicative
 import Relude.Base
 import Relude.Bool

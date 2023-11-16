@@ -60,7 +60,10 @@ instance Show (Tournament t) where
     One a -> Show.showsPrec p a
     Empty -> Show.showString "Empty"
     LiftTMany t -> Show.showParen True (Show.showString "Lt " . Show.showsPrec 9 t)
-    _ -> Show.showString "_"
+    ByPlayerCount f -> Show.showsPrec 9 (f 8)
+    ByFocus f -> Show.showString "ByFocus"
+    ByStandings f -> Show.showString "ByStandings"
+    Modify m t -> Show.showParen True (Show.showString "Mod " . Show.showsPrec 9 t)
 
 data Mod
   = SetFocus !(Focus -> [Focus])

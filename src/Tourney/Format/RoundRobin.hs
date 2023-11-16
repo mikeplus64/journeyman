@@ -29,7 +29,7 @@ import Tourney.Algebra
 
 roundRobin :: PlayerCount -> [[Match]]
 roundRobin count =
-  [ foldAround midpoint (0 : ((n - i) ..< n) ++ (1 ..< (n - i)))
+  [ foldAround midpoint (map Slot (0 : ((n - i) ..< n) ++ (1 ..< (n - i))))
   | i <- [0 .. n - 2]
   ]
   where
@@ -103,7 +103,7 @@ pub fn group_schedule(signups: usize, rematches: usize) -> Vec<Vec<(usize, usize
 -- TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 -- SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 roundRobinEirikAlbrigtsen :: Int -> [[Match]]
-roundRobinEirikAlbrigtsen count = map (foldAround midpoint . toList) r
+roundRobinEirikAlbrigtsen count = map (foldAround midpoint . map Slot . toList) r
   where
     (!midpoint, !oddness) = count `quotRem` 2
     !end = count + oddness - 1

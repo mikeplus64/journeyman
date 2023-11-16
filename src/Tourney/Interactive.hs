@@ -141,12 +141,6 @@ createRounds steps esp = do
 --   { matches :: V.Vector (Sorter, V.Vector Match, [MatchResult])
 --   }
 
--- data AppEvent
---   = AddResult MatchResult
---   | AdvanceRound
---   | Quit
---   | Noop
-
 -- data AppState = AppState
 --   { steps :: Steps ResultsProviderIO ()
 --   , rpState :: RPState
@@ -201,7 +195,6 @@ createRounds steps esp = do
 --         , appStartEvent = setupApp
 --         , appAttrMap = \_ -> Brick.attrMap I.defAttr []
 --         }
-
 --     handleBrickEvent = \case
 --       Brick.VtyEvent (EvKey key mods) -> case (key, mods) of
 --         (KChar 'c', [MCtrl]) -> Brick.halt
@@ -222,21 +215,18 @@ createRounds steps esp = do
 --           Brick.SBTroughAfter -> Just 12
 --           _ -> Nothing
 --       _ -> pure ()
-
 --     render :: AppState -> Brick.Widget AppElement
 --     render s =
 --       Brick.vBox
 --         [ setGreedyV (canvas s)
 --         , panel s
 --         ]
-
 --     panel :: AppState -> Brick.Widget AppElement
 --     panel s =
 --       Brick.withBorderStyle unicodeRounded
 --         . Brick.padAll 1
 --         . Brick.borderWithLabel (Brick.txt "journeyman")
 --         $ Brick.txtWrap "asdfasfd"
-
 --     canvas :: AppState -> Brick.Widget AppElement
 --     canvas s =
 --       Brick.withClickableHScrollBars ScrollBar
@@ -247,7 +237,6 @@ createRounds steps esp = do
 --         . map (Brick.padAll 1 . drawRound (s ^. #playerCount))
 --         $ toList (s ^. #rounds)
 --           ^.. each . _2
-
 --     setGreedyV :: Brick.Widget a -> Brick.Widget a
 --     setGreedyV w = w{Brick.vSize = Brick.Greedy}
 
@@ -260,18 +249,6 @@ createRounds steps esp = do
 --   steps <- use #steps
 --   count <- use #playerCount
 --   #roundStream .= compileRounds steps count
-
--- -- advanceRound :: Brick.EventM AppElement AppState ()
--- -- advanceRound = do
--- --   s <- use #roundStream
--- --   let (rounds, _isComplete, next) = S.peekAll s
--- --   roundsWithMatches :: Maybe (NE.NonEmpty (CompiledStep, V.Vector (Sorter, V.Vector Match))) <-
--- --     forM (NE.nonEmpty rounds) $ mapM \compiledStep -> do
--- --       let matchStream = getMatches compiledStep
--- --       matches <- VB.build <$> S.fold (\x xs -> VB.singleton x <> xs) mempty matchStream
--- --       pure (compiledStep, matches)
--- --   #roundStream .= next
--- --   #rounds .= fmap ZNE.fromNonEmpty roundsWithMatches
 
 -- -- s' <- liftRP do
 -- --   next <- S.peekAll s

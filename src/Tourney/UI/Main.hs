@@ -1,20 +1,32 @@
+{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE NoFieldSelectors #-}
+
 module Tourney.UI.Main where
 
+import Brick hiding (Max, Result)
 import Brick qualified
-import Brick.Widgets.Border qualified as Brick
+import Brick.Types (BrickEvent)
+import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
-import Control.Concurrent.MVar (modifyMVar)
-import Control.Lens
-import Control.Monad.Primitive
-import Control.Monad.ST.Strict
-import Data.Array.ST qualified as A
-import Data.Array.Unboxed qualified as A
+import Brick.Widgets.Center
 import Data.Colour qualified as Colour
 import Data.Colour.CIE qualified as Colour
 import Data.Colour.CIE.Illuminant qualified as Colour
 import Data.Colour.Names qualified as Colour
 import Data.Colour.Palette.BrewerSet qualified as Colour
 import Data.Colour.SRGB qualified as Colour
+import Graphics.Vty qualified as Vty
+import Graphics.Vty.Attributes qualified as I
+import Graphics.Vty.Image qualified as I
+import Graphics.Vty.Input.Events
+
+import Control.Concurrent.MVar (modifyMVar)
+import Control.Lens
+import Control.Monad.Primitive
+import Control.Monad.ST.Strict
+import Data.Align (alignWith)
+import Data.Array.ST qualified as A
+import Data.Array.Unboxed qualified as A
 import Data.Dependency (MonadRequest (..), StreamM (..))
 import Data.Dependency qualified as S
 import Data.Foldable qualified as Fold
@@ -22,129 +34,172 @@ import Data.List.NonEmpty qualified as NE
 import Data.List.NonEmpty.Zipper qualified as ZNE
 import Data.Map.Strict qualified as Map
 import Data.MinMax
+import Data.These
 import Data.Tuple.Ordered
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as U
-import Graphics.Vty qualified as Vty
-import Graphics.Vty.Attributes qualified as I
-import Graphics.Vty.Image qualified as I
-import Graphics.Vty.Input.Events
-import Tourney.Algebra
-import Tourney.Format.DoubleElimination
-import Tourney.Format.RoundRobin
-import Tourney.Format.SingleElimination
-import Tourney.SortingNetwork
 import VectorBuilder.Builder qualified as VB
 import VectorBuilder.Vector qualified as VB
 
--- interactivelyRunSteps :: Steps ResultsProviderIO () -> IO AppState
--- interactivelyRunSteps steps =
---   Brick.defaultMain
---     app
---     AppState
---       { steps
---       , rpState = one V.empty
---       , roundStream = mempty
---       , playerCount = 16
---       , initialStandings = mempty
---       , currentMatchStream = mempty
---       , rounds = Nothing
---       , matchHistory = mempty
---       , borderStyle = unicodeBold
---       }
---   where
---     app :: Brick.App AppState AppEvent AppElement
---     app =
---       Brick.App
---         { appDraw = \s -> [render s]
---         , appChooseCursor = Brick.showFirstCursor
---         , appHandleEvent = handleBrickEvent
---         , appStartEvent = setupApp
---         , appAttrMap = \_ -> Brick.attrMap I.defAttr []
---         }
---     handleBrickEvent = \case
---       Brick.VtyEvent (EvKey key mods) -> case (key, mods) of
---         (KChar 'c', [MCtrl]) -> Brick.halt
---         (KChar 'q', []) -> Brick.halt
---         (KChar ' ', []) -> advanceRound
---         (KLeft, []) -> Brick.hScrollBy (Brick.viewportScroll Main) (-6)
---         (KRight, []) -> Brick.hScrollBy (Brick.viewportScroll Main) 6
---         _ -> pure ()
---       Brick.MouseDown _ BScrollUp _ _ ->
---         Brick.hScrollBy (Brick.viewportScroll Main) (-6)
---       Brick.MouseDown _ BScrollDown _ _ ->
---         Brick.hScrollBy (Brick.viewportScroll Main) 6
---       Brick.MouseDown (ScrollBar el Main) BLeft _ _ -> do
---         mapM_ (Brick.hScrollBy (Brick.viewportScroll Main)) case el of
---           Brick.SBHandleBefore -> Just (-6)
---           Brick.SBHandleAfter -> Just 6
---           Brick.SBTroughBefore -> Just (-12)
---           Brick.SBTroughAfter -> Just 12
---           _ -> Nothing
---       _ -> pure ()
---     render :: AppState -> Brick.Widget AppElement
---     render s =
---       Brick.vBox
---         [ setGreedyV (canvas s)
---         , panel s
---         ]
---     panel :: AppState -> Brick.Widget AppElement
---     panel s =
---       Brick.withBorderStyle unicodeRounded
---         . Brick.padAll 1
---         . Brick.borderWithLabel (Brick.txt "journeyman")
---         $ Brick.txtWrap "asdfasfd"
---     canvas :: AppState -> Brick.Widget AppElement
---     canvas s =
---       Brick.withClickableHScrollBars ScrollBar
---         . Brick.withHScrollBars Brick.OnBottom
---         . Brick.viewport Main Brick.Both
---         . Brick.padAll 1
---         . Brick.hBox
---         . map (Brick.padAll 1 . drawRound (s ^. #playerCount))
---         $ toList (s ^. #rounds)
---           ^.. each . _2
---     setGreedyV :: Brick.Widget a -> Brick.Widget a
---     setGreedyV w = w{Brick.vSize = Brick.Greedy}
+import Tourney.Algebra (Depth (..), Tournament, execSteps)
+import Tourney.Common
+import Tourney.Format.DoubleElimination
+import Tourney.Format.RoundRobin
+import Tourney.Format.SingleElimination
+import Tourney.Match
+import Tourney.Match.Matrix (MapByMatches (..), MapByRound (..))
+import Tourney.SortingNetwork
+import Tourney.Stream qualified as TS
+import Tourney.VM (VM)
+import Tourney.VM qualified as VM
 
--- setupApp :: Brick.EventM AppElement AppState ()
--- setupApp = do
---   -- Enable mouse support
---   vty <- Brick.getVtyHandle
---   liftIO (Vty.setMode (Vty.outputIface vty) Vty.Mouse True)
---   -- Setup the rounds initially
---   steps <- use #steps
---   count <- use #playerCount
---   #roundStream .= compileRounds steps count
+trySE = interactiveTournament (execSteps id singleElimination)
+
+data AppState = AppState
+  { tournament :: Tournament TMany
+  , codeSoFar :: VM.Code
+  , matches :: VM.MapByRound (VM.MapByMatches (Maybe Result))
+  , pureMatches :: VM.MapByRound (VM.MapByMatches (Maybe Result))
+  , pureCode :: VM.Code
+  , standingsHistory :: VM.MapByRound VM.StandingsUpdate
+  , vm :: !VM
+  , playerCount :: !PlayerCount
+  , colours :: !(Array Player (Colour.Colour Double))
+  }
+  deriving stock (Generic)
+
+data AppEvent
+  = AddResult MatchResult
+  | AdvanceRound
+  | Quit
+  | Noop
+  deriving stock (Eq, Show, Ord)
+
+interactiveTournament :: Tournament TMany -> IO AppState
+interactiveTournament t = do
+  let !playerCount = 8
+  vm <- VM.setup t playerCount
+  pureCode <- VM.peekCode vm
+  defaultMain
+    app
+    AppState
+      { tournament = t
+      , matches = Empty
+      , pureMatches = TS.pureMatchesByRound t playerCount
+      , standingsHistory = Empty
+      , codeSoFar = mempty
+      , pureCode
+      , playerCount
+      , vm
+      , colours = makeMatchColours playerCount
+      }
+  where
+    app :: App AppState AppEvent AppElement
+    app =
+      App
+        { appDraw = \s -> [drawMain `runReader` s]
+        , appChooseCursor = showFirstCursor
+        , appHandleEvent = handleBrickEvent
+        , appStartEvent = setupApp
+        , appAttrMap = \_ -> attrMap I.defAttr []
+        }
+
+handleBrickEvent :: BrickEvent AppElement AppEvent -> EventM AppElement AppState ()
+handleBrickEvent = \case
+  VtyEvent (EvKey key mods) -> case (key, mods) of
+    (KChar 'c', [MCtrl]) -> halt
+    (KChar 'q', []) -> halt
+    (KChar ' ', []) -> advanceRound
+    (KLeft, []) -> hScrollBy (viewportScroll Tournament) (-6)
+    (KRight, []) -> hScrollBy (viewportScroll Tournament) 6
+    _ -> pure ()
+  MouseDown _ BScrollUp _ _ ->
+    hScrollBy (viewportScroll Tournament) (-6)
+  MouseDown _ BScrollDown _ _ ->
+    hScrollBy (viewportScroll Tournament) 6
+  MouseDown (ScrollBar el Tournament) BLeft _ _ -> mapM_ (hScrollBy (viewportScroll Tournament)) case el of
+    SBHandleBefore -> Just (-6)
+    SBHandleAfter -> Just 6
+    SBTroughBefore -> Just (-12)
+    SBTroughAfter -> Just 12
+    _ -> Nothing
+  _ -> pure ()
+
+advanceRound :: EventM AppElement AppState ()
+advanceRound = do
+  vm <- use #vm
+  _ <- liftIO (VM.loop vm)
+  #matches <~ liftIO (VM.getMatches vm)
+  #codeSoFar <~ liftIO (VM.getCodeSoFar vm)
+  #standingsHistory <~ liftIO (VM.getStandingsHistory vm)
+
+setupApp :: EventM AppElement AppState ()
+setupApp = do
+  -- Enable mouse support
+  vty <- getVtyHandle
+  liftIO (Vty.setMode (Vty.outputIface vty) Vty.Mouse True)
 
 --------------------------------------------------------------------------------
--- UI elements
-
-data UIConfig = UIConfig
-  { playerColours :: !(Array Player (Colour.Colour Double))
-  , playerCount :: !PlayerCount
-  }
+-- UI types
 
 data AppElement
   = Tournament
+  | CodeStream
   | Panel
+  | ScrollBar ClickableScrollbarElement AppElement
+  deriving stock (Show, Eq, Ord)
 
-type UIElement = Reader UIConfig (Brick.Widget AppElement)
+type UIElement = Reader AppState (Widget AppElement)
+
+drawMain :: UIElement
+drawMain = do
+  panel <- drawPanel
+  tournament <- drawTournament
+  pure (tournament <=> panel)
 
 drawPanel :: UIElement
-drawPanel = undefined
+drawPanel = do
+  pure $!
+    txtWrap "fart"
+      & padAll 1
+      & borderWithLabel (txt " journeyman ")
+      & withBorderStyle unicodeRounded
 
-drawTournament :: Vector (Vector (Match, Maybe Result)) -> UIElement
-drawTournament rounds = undefined
+drawTournament :: UIElement
+drawTournament = do
+  roundsPure <- view #pureMatches
+  rounds <- view #matches
+  let displayRounds = alignWith alignRound (toList roundsPure) (toList rounds)
+  standings <- fromMaybe mempty <$> preview (#standingsHistory . traverseMax . #standings)
+  roundsRendered <- mapM (\(isReal, r) -> drawRound isReal r standings) displayRounds
+  pure (hBox roundsRendered & padAll 1 & borderWithLabel (txt " tournament ") & withBorderStyle unicodeRounded)
+  where
+    alignRound (These _ r) = (True, r)
+    alignRound (This p) = (False, p)
+    alignRound (That r) = (True, r)
 
-drawRound :: Vector (Match, Maybe Result) -> UIElement
-drawRound matches = do
-  colours <- asks playerColours
-  pc <- asks playerCount
+-- pure $!
+--   mapM drawRound rounds
+--     & hBox
+
+-- \$ toList (s ^. #rounds)
+--   ^.. each . _2
+
+drawRound :: Bool -> MapByMatches (Maybe Result) -> Vector (Points, Player) -> UIElement
+drawRound isReal matches standings = do
+  colours <- view #colours
+  pc <- view #playerCount
   let
-    !count = maximumOf (each . _1 . likelyLoser) matches & maybe pc (+ 1) & max pc
+    dim =
+      if isReal
+        then I.linearColor @Word8 100 100 100
+        else I.linearColor @Word8 100 0 0
+
+    -- compute count as a maximum over the actual players in order to compensate
+    -- for possible goofs in calculating player numbers
+    !count = asInt (getMax (ifoldMap (\(Match _ b) _ -> Max b) matches)) & max pc
     !width = length (show count :: String)
     vertLine right =
       I.vertCat
@@ -156,24 +211,27 @@ drawRound matches = do
           ]
     horizLines = I.vertCat (replicate count (I.char (I.defAttr `I.withForeColor` dim) (bsHorizontal unicodeRounded)))
     drawMatchColumn (Match low high) =
-      I.horizCat
-        [ horizLines
-        , I.vertCat
-            [ if
-              | low < m && m < high -> I.string (matchAttr low high m) (replicate width ' ')
-              | m == low -> I.string (matchAttr low high m) (pad (show m))
-              | m == high -> I.string (matchAttr low high m) (pad (show m))
-              | otherwise -> I.string (I.defAttr `I.withForeColor` dim) (replicate width (bsHorizontal unicode))
-            | m <- [0 .. count - 1]
+      let !playerLow = fromMaybe (coerce low) (standings ^? ix (asInt low) . _2)
+          !playerHigh = fromMaybe (coerce high) (standings ^? ix (asInt high) . _2)
+      in  I.horizCat
+            [ horizLines
+            , I.vertCat
+                [ if
+                  | low < m && m < high -> I.string attr (replicate width ' ')
+                  | m == low -> I.string attr (pad (show m))
+                  | m == high -> I.string attr (pad (show m))
+                  | otherwise -> I.string (I.defAttr `I.withForeColor` dim) (replicate width (bsHorizontal unicode))
+                | m <- 0 ..< Slot count
+                , let !attr = matchAttr (low, playerLow) (high, playerHigh) m
+                ]
             ]
-        ]
-    matchAttr = getMatchAttr colours
+    matchAttr = getMatchAttr pc colours
     pad x = replicate (width - length x) ' ' ++ x
   pure $
-    Brick.raw $
+    raw $
       I.horizCat
         [ vertLine False
-        , I.horizCat (map (drawMatchColumn . fst) (toList matches))
+        , I.horizCat (map (drawMatchColumn . fst) (itoList matches))
         , horizLines
         , vertLine True
         ]
@@ -181,24 +239,29 @@ drawRound matches = do
 --------------------------------------------------------------------------------
 -- Terminal attributes
 
-dim :: I.Color
-dim = I.linearColor @Word8 50 50 50
-
-makeMatchColours :: PlayerCount -> Vector (Colour.Colour Double)
-makeMatchColours count = V.fromList (take count (cycle (Colour.brewerSet Colour.Paired 12)))
+makeMatchColours :: PlayerCount -> Array Player (Colour.Colour Double)
+makeMatchColours count =
+  listArray (0, Player (count - 1)) (take count (cycle knownColours))
+  where
+    knownColours = Colour.brewerSet Colour.Paired 12
 
 toVtyRGB :: Colour.Colour Double -> Vty.Color
 toVtyRGB c = case Colour.toSRGB24 c of
   Colour.RGB r g b -> I.linearColor r g b
 
-getMatchAttr :: Array Player (Colour.Colour Double) -> Player -> Player -> Player -> I.Attr
-getMatchAttr colours low high actual =
+getMatchAttr
+  :: PlayerCount
+  -> Array Player (Colour.Colour Double)
+  -> (Slot, Player)
+  -> (Slot, Player)
+  -> Slot
+  -> I.Attr
+getMatchAttr pc colours (slow, low) (shigh, high) actual =
   I.defAttr
     `I.withBackColor` toVtyRGB midColour
     `I.withForeColor` toVtyRGB textColour
     `I.withStyle` I.bold
   where
-    (_, pc) = arrayBounds colours
     textColour, midColour, lowColour, highColour :: Colour.Colour Double
     !textColour
       | isBye = Colour.grey
@@ -209,5 +272,5 @@ getMatchAttr colours low high actual =
         & Colour.darken (if isBye then 0.01 else 1.0)
     !lowColour = colours ^?! ix low
     !highColour = colours ^?! ix high
-    !dist = fromIntegral (high - actual) / fromIntegral (high - low)
-    !isBye = not (low >= 0 && high < pc)
+    !dist = fromIntegral (shigh - actual) / fromIntegral (shigh - slow)
+    !isBye = slow < 0 || slow > Slot pc

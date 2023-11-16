@@ -6,6 +6,11 @@ module Tourney.VM.Interpret (
   createIState,
   interpGetPendingMatches,
   interpGetStandings,
+  interpGetMatches,
+
+  -- * Looking at updates
+  StandingsUpdate (..),
+  interpGetStandingsHistory,
 
   -- * Running it
   tryRunStep,
@@ -14,7 +19,8 @@ module Tourney.VM.Interpret (
 
 import Control.Concurrent.STM (retry)
 import Data.Vector qualified as V
-import Tourney.Algebra
+import Tourney.Common
+import Tourney.Match
 import Tourney.Match.Matrix
 import Tourney.SortingNetwork
 import Tourney.VM.Code
@@ -25,35 +31,55 @@ newtype IStateVar = IStateVar
   }
   deriving stock (Eq)
 
+data IState = IState
+  { roundDepth :: !Int
+  , roundNo :: !RoundNo
+  , matrix :: !MatchMatrix
+  , standings :: !(V.Vector (Points, Player))
+  , history :: !(MapByRound StandingsUpdate)
+  }
+  deriving stock (Generic)
+
 data StandingsUpdate = StandingsUpdate
   { roundNo :: !RoundNo
   , roundDepth :: !Int
   , standings :: !(Vector (Points, Player))
   }
+  deriving stock (Show, Eq, Ord, Generic)
 
 createIState :: PlayerCount -> STM IStateVar
 createIState count = do
-  matrix <- createRoundMatchMatrix count
-  let standings = V.generate count (0 :: Points,)
-  let update0 = StandingsUpdate 0 0 standings
+  matrix <- createMatchMatrix
+  let standings = V.generate count \i -> (0 :: Points, Player i)
   let state0 =
         IState
           { roundDepth = 0
           , roundNo = 0
           , matrix
           , standings
-          , history = update0 :| []
+          , history = Empty & at (-1) ?~ StandingsUpdate (-1) 0 standings
           }
   var <- newTVar state0
   pure IStateVar{var}
 
-interpGetPendingMatches :: IStateVar -> STM (V.Vector Match)
-interpGetPendingMatches IStateVar{var} = readPendingMatches . view #matrix =<< readTVar var
+interpGetPendingMatches :: IStateVar -> STM (Vector Match)
+interpGetPendingMatches IStateVar{var} = do
+  IState{roundNo, matrix} <- readTVar var
+  getPendingMatches matrix roundNo
 
 interpGetStandings :: IStateVar -> Focus -> STM Standings
 interpGetStandings IStateVar{var} Focus{focusStart, focusLength} = do
-  IState{history = StandingsUpdate{standings} :| _} <- readTVar var
-  pure (V.convert (V.slice focusStart focusLength (V.map snd standings)))
+  IState{standings} <- readTVar var
+  pure (vectorToStandings (V.slice (asInt focusStart) focusLength (V.map snd standings)))
+
+interpGetStandingsHistory :: IStateVar -> STM (MapByRound StandingsUpdate)
+interpGetStandingsHistory IStateVar{var} = do
+  IState{history} <- readTVar var
+  pure history
+
+interpGetMatches :: IStateVar -> STM (MapByRound (MapByMatches (Maybe Result)))
+interpGetMatches IStateVar{var} = do
+  readMatchMatrix . view #matrix =<< readTVar var
 
 --------------------------------------------------------------------------------
 
@@ -73,15 +99,6 @@ runStepRetrying IStateVar{var} o = do
   unless continue retry
   writeTVar var s'
 
-data IState = IState
-  { roundDepth :: !Int
-  , roundNo :: !Int
-  , matrix :: !RoundMatchMatrix
-  , standings :: !(V.Vector (Points, Player))
-  , history :: !(NonEmpty StandingsUpdate)
-  }
-  deriving stock (Generic)
-
 --------------------------------------------------------------------------------
 
 -- | Perform one step of the interpreter
@@ -89,7 +106,8 @@ stepOp :: TourneyOp -> StateT IState STM Bool
 stepOp = \case
   MATCH m -> do
     matrix <- use #matrix
-    _ <- lift (addMatch matrix m)
+    roundNo <- use #roundNo
+    _ <- lift (addMatch matrix roundNo m)
     pure True
   BEGIN_ROUND -> do
     #roundDepth += 1
@@ -97,34 +115,29 @@ stepOp = \case
     pure True
   PERFORM_SORTING focus method -> do
     IState{roundNo, roundDepth, standings, matrix} <- get
-    count <- lift (pendingMatchesWithinCount matrix focus)
+    haveAny <- lift (haveAnyPendingMatchesWithin matrix roundNo focus)
     -- If there are any pending matches _within this focus_, block
-    if count == 0
-      then do
+    if haveAny
+      then pure False
+      else do
         performSorter (Sorter focus method)
-        #history %= addStandingsUpdate StandingsUpdate{roundNo, roundDepth, standings}
-        True <$ lift (clearMatchMatrix matrix focus)
-      else pure False
+        #history . at roundNo ?= StandingsUpdate{roundNo, roundDepth, standings}
+        pure True
   END_ROUND -> do
     matrix <- use #matrix
-    count <- lift (pendingMatchCount matrix)
-    when (count == 0) (#roundDepth -= 1)
+    roundNo <- use #roundNo
+    count <- lift (pendingMatchCount matrix roundNo)
     -- If there are any pending matches before the round end, block
-    pure (count == 0)
+    if count > 0
+      then pure False
+      else do
+        #roundDepth -= 1
+        pure True
 
 -- | Perform a sorter using the current 'RoundMatchMatrix'
 performSorter :: Sorter -> StateT IState STM ()
 performSorter sorter = do
-  matrix <- use #matrix
-  standings <- use #standings
-  results <- lift (readMatchResults matrix)
+  IState{matrix, standings, roundNo} <- get
+  results <- lift (getMatchResults matrix roundNo)
   let !next = V.modify (runMatchesBy sorter results) standings
   #standings .= next
-
-addStandingsUpdate :: StandingsUpdate -> NonEmpty StandingsUpdate -> NonEmpty StandingsUpdate
-addStandingsUpdate next@StandingsUpdate{roundNo, roundDepth} (x :| xs)
-  | sameCoords x = next :| xs
-  | otherwise = next :| (x : xs)
-  where
-    sameCoords StandingsUpdate{roundNo = prevRoundNo, roundDepth = prevRoundDepth} =
-      roundNo == prevRoundNo && roundDepth == prevRoundDepth

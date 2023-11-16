@@ -1,17 +1,30 @@
 module Tourney.VM (
+  VM,
   setup,
+  step,
+  StepCodeEvent,
   loop,
-  code,
-  module Tourney.VM.Compile,
-  module Tourney.VM.Code,
-  module Tourney.VM.Interpret,
+  LoopEvent (..),
+  getCodeSoFar,
+  getMatches,
+  getStandingsHistory,
+  pendingMatches,
+  peekCode,
+
+  -- * Re-exports
+  Code,
+  MapByRound (..),
+  MapByMatches (..),
+  Match (..),
+  Result (..),
+  MatchResult (..),
+  StandingsUpdate (..),
 ) where
 
-import Tourney.Algebra.Builder (execSteps)
 import Tourney.Algebra.Unified
 import Tourney.Common
-import Tourney.Format.SingleElimination
 import Tourney.Match
+import Tourney.Match.Matrix
 import Tourney.Stream
 import Tourney.VM.Code
 import Tourney.VM.Compile
@@ -33,11 +46,6 @@ setup t count = do
 data LoopEvent = VMDone | VMBlocked
   deriving stock (Show)
 
-pendingMatches :: VM -> IO (Vector Match)
-pendingMatches = runVM do
-  istate <- asks vmIState
-  atomically (interpGetPendingMatches istate)
-
 loop :: VM -> IO LoopEvent
 loop = runVM go
   where
@@ -53,8 +61,22 @@ step = runVM do
   istate <- asks vmIState
   tryStepCodeStream (atomically . tryRunStep istate)
 
-code :: VM -> IO Code
-code VM{vmStream} = codeSoFar <$> readIORef vmStream
+getMatches :: VM -> IO (MapByRound (MapByMatches (Maybe Result)))
+getMatches = runVM do
+  istate <- asks vmIState
+  atomically (interpGetMatches istate)
+
+getCodeSoFar :: VM -> IO Code
+getCodeSoFar VM{vmStream} = codeSoFar <$> readIORef vmStream
+
+peekCode :: VM -> IO Code
+peekCode = runVM debugCodeStream
+
+getStandingsHistory :: VM -> IO (MapByRound StandingsUpdate)
+getStandingsHistory VM{vmIState} = atomically (interpGetStandingsHistory vmIState)
+
+pendingMatches :: VM -> STM (Vector Match)
+pendingMatches VM{vmIState} = interpGetPendingMatches vmIState
 
 --------------------------------------------------------------------------------
 
@@ -74,11 +96,3 @@ newtype WithVM a = WithVM {runVM :: VM -> IO a}
 instance PrimMonad WithVM where
   type PrimState WithVM = RealWorld
   primitive m = liftIO (primitive m)
-
---------------------------------------------------------------------------------
-
-test = setup (execSteps id singleElimination) 8
-
-runSE = do
-  vm <- setup (execSteps id singleElimination) 8
-  loop vm

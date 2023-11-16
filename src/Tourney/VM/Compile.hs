@@ -20,6 +20,7 @@ module Tourney.VM.Compile (
   codeSoFar,
   createStreamEnv,
   withGetStandings,
+  debugCodeStream,
 
   -- * Reading code off of a stream
   MonadCodeStream (..),
@@ -97,6 +98,12 @@ popCodeStream = do
           -- We have reached the end of the stream, so we can finalise it
           putCodeStream (CodeDone (VB.build builder))
           pure Nothing
+
+debugCodeStream :: MonadCodeStream m c => m Code
+debugCodeStream = do
+  getCodeStream <&> \case
+    CodeDone c -> c
+    CodeStream b n -> VB.build (b <> VB.vector (S.pureVector n))
 
 --------------------------------------------------------------------------------
 

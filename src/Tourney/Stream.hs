@@ -34,8 +34,10 @@ module Tourney.Stream (
   Inspection (..),
   Inspect (..),
   runInspection,
+  pureMatchesByRound,
 ) where
 
+import Control.Lens qualified as L
 import Control.Monad.Except
 import Data.Dependency (StreamM)
 import Data.Dependency qualified as S
@@ -44,6 +46,7 @@ import Data.Vector qualified as V
 import Tourney.Algebra.Unified
 import Tourney.Common
 import Tourney.Match
+import Tourney.Match.Matrix (MapByMatches, MapByRound, vectorMapByRound)
 import VectorBuilder.Builder qualified as VB
 import VectorBuilder.Vector qualified as VB
 import Prelude hiding (Empty)
@@ -99,7 +102,10 @@ createRoundStream t0 = RoundStream \StreamEnv{getStandings, focus = focus0} ->
           alignOverlayed (These l r) = l +++ r
           alignOverlayed (This l) = l
           alignOverlayed (That r) = r
-      Sequence a b -> liftA2 S.Cat (go a) (go b)
+      Sequence a b -> do
+        a' <- go a
+        b' <- go b
+        pure (a' <> b')
       LiftTMany t -> go t
       ByPlayerCount byCount -> do
         Focus{focusLength} <- ask
@@ -150,7 +156,7 @@ createMatchStream t0 = MatchStream \StreamEnv{getStandings, focus = focus0} ->
           outer <- view #sorterFocus
           local (#sorterFocus . #focusStart +~ Slot off) do
             inner <- view #sorterFocus
-            unless (inner `focusWithin` outer) $
+            unless (inner `focusWithin` outer) do
               lift (S.yield (err InvalidFocus{outer, inner}))
             go t
         SetSortMethod method -> do
@@ -178,7 +184,7 @@ createMatchStream t0 = MatchStream \StreamEnv{getStandings, focus = focus0} ->
     flip runReaderT (Sorter focus0 def) do
       s0 <- ask
       leftover <- go t0
-      lift (S.yield (Right (s0, leftover)))
+      unless (S.null leftover) (lift (S.yield (Right (s0, leftover))))
 
 -- | A fully compiled 'Tournament' that has been transformed into a stream of
 -- matches. The mnemonic for the name here is that the word "tourney" is a
@@ -268,8 +274,9 @@ runInspection Inspection{standingsFn = getStandings, playerCount = count, query}
           S.for_ (hoist2 roundStream) \rs -> do
             S.for_ (hoist2 (unMatchStream rs compiler0)) \case
               Left e -> throwError e
-              Right (_, matchGroup) -> do
-                matchesMaybe <- V.sequence <$> lift (lift (S.toVector matchGroup))
+              Right (sorter, matchGroup) -> do
+                matchesRaw <- lift (lift (S.toVector matchGroup))
+                let matchesMaybe = V.sequence matchesRaw
                 matches <- liftEither matchesMaybe
                 modify' (<> VB.singleton matches)
     ByRound BySorter ->
@@ -290,3 +297,8 @@ runInspection Inspection{standingsFn = getStandings, playerCount = count, query}
     roundStream = tourneyStream (createTourney compiler0 t)
     hoist2 :: (MonadTrans t1, MonadTrans t2, Monad m, Monad (t2 m)) => StreamM m a r -> StreamM (t1 (t2 m)) a r
     hoist2 = S.hoistT . S.hoistT
+
+pureMatchesByRound :: Tournament TMany -> PlayerCount -> MapByRound (MapByMatches (Maybe Result))
+pureMatchesByRound t count =
+  runIdentity (runInspection (Inspection noStandings count (ByRound Flat)) t)
+    & foldMapOf _Right (fmap (foldMap (\m -> L.Empty & at m ?~ Nothing)) . vectorMapByRound)
