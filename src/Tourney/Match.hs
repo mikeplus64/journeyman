@@ -9,6 +9,7 @@ module Tourney.Match (
   likelyWinner,
   likelyLoser,
   matchIsWithin,
+  matchIsReversal,
 
   -- ** Results
   MatchResult (..),
@@ -20,10 +21,13 @@ module Tourney.Match (
   loser,
 ) where
 
+import Data.Char (isNumber)
 import Data.Ix qualified as Ix
 import Data.Vector.Unboxed qualified as U
 import GHC.IsList (IsList (..))
 import GHC.Ix qualified as Ix
+import Text.ParserCombinators.ReadP as R
+import Text.Read as R
 import Text.Show (Show (showsPrec))
 import Tourney.Common (Focus (..), Slot, focusContains)
 
@@ -49,7 +53,16 @@ import Tourney.Common (Focus (..), Slot, focusContains)
 -- 1 == Points [1] = True -- fromInteger definition
 -- @
 newtype Points = Points (U.Vector Int)
-  deriving stock (Show)
+
+instance Show Points where
+  showsPrec _ (Points v) = (++) (intercalate "." (map show (toListOf each v)))
+
+instance Read Points where
+  readsPrec _ = readP_to_S pointsReader
+    where
+      pointsReader = do
+        sections <- sepBy1 (many1 (satisfy isNumber)) (char '.')
+        pure (Points (U.fromList (map (read :: String -> Int) sections)))
 
 instance Eq Points where
   Points a == Points b = uncurry (coerce ((==) @(U.Vector Int))) (ensureSameLength a b)
@@ -91,6 +104,9 @@ alignedPointsBinOp f (Points xs) (Points ys) = Points (uncurry (U.zipWith f) (en
 data Match = Match_ !Slot !Slot
   deriving stock (Eq, Ord, Generic)
 
+instance Show Match where
+  showsPrec p (Match_ a b) = showsPrec p (a, b)
+
 instance Ix.Ix Match where
   {-# INLINE range #-}
   {-# INLINE index #-}
@@ -104,9 +120,6 @@ instance Ix.Ix Match where
   inRange (Match_ a0 b0, Match_ a1 b1) (Match_ i j) = Ix.inRange ((a0, b0), (a1, b1)) (i, j)
   rangeSize (Match_ a0 b0, Match_ a1 b1) = Ix.rangeSize ((a0, b0), (a1, b1))
   unsafeRangeSize (Match_ a0 b0, Match_ a1 b1) = Ix.unsafeRangeSize ((a0, b0), (a1, b1))
-
-instance Show Match where
-  showsPrec p (Match a b) = showsPrec p (a, b)
 
 -- | Create a match, throwing an error if it has negative or equal slots
 createMatch :: Slot -> Slot -> Match
@@ -153,6 +166,9 @@ data MatchResult = MatchResult
   , result :: !Result
   }
   deriving stock (Show, Eq, Ord, Generic)
+
+matchIsReversal :: MatchResult -> Bool
+matchIsReversal (MatchResult _ (Result pa pb)) = pb > pa
 
 didSlot1Win :: MatchResult -> Maybe Bool
 didSlot1Win MatchResult{result = Result score1 score2} =

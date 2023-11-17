@@ -25,8 +25,6 @@ module Tourney.VM.Compile (
   -- * Reading code off of a stream
   MonadCodeStream (..),
   popCodeStream,
-  tryStepCodeStream,
-  StepCodeEvent (..),
 
   -- * Debug
   debugExecCompiler,
@@ -68,21 +66,6 @@ class (Monad m, MonadPrim RealWorld m, Monad c) => MonadCodeStream m c | m -> c 
   getCodeStream :: m (CodeStream c)
   putCodeStream :: CodeStream c -> m ()
   runCodeStreamEffect :: c a -> m a
-
-data StepCodeEvent = NoCode | StepBlocked | SteppedOk
-  deriving stock (Eq, Show)
-
--- | Step the code-stream by some function. If the function returns false, the
--- previous code stream state is restored.
-tryStepCodeStream :: MonadCodeStream m c => (TourneyOp -> m Bool) -> m StepCodeEvent
-tryStepCodeStream stepFn = do
-  prev <- getCodeStream
-  pop <- popCodeStream
-  mok <- forM pop \o -> do
-    ok <- stepFn o
-    unless ok (putCodeStream prev)
-    pure ok
-  pure (maybe NoCode (\b -> if b then SteppedOk else StepBlocked) mok)
 
 -- | Get the next 'TourneyOp' from the code stream.
 popCodeStream :: MonadCodeStream m c => m (Maybe TourneyOp)

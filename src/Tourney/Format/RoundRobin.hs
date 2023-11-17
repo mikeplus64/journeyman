@@ -27,20 +27,21 @@ import Tourney.Algebra
 
 -- XXX Set the sorting method!
 
-roundRobin :: PlayerCount -> [[Match]]
-roundRobin count =
-  [ foldAround midpoint (map Slot (0 : ((n - i) ..< n) ++ (1 ..< (n - i))))
-  | i <- [0 .. n - 2]
-  ]
-  where
-    (!midpoint, !r) = count `quotRem` 2
-    !n = count + r
+roundRobin :: Steps () ()
+roundRobin = do
+  count <- getPlayerCount
+  let (!midpoint, !r) = count `quotRem` 2
+  let !n = count + r
+  steps
+    [ foldAround midpoint (map Slot (0 : ((n - i) ..< n) ++ (1 ..< (n - i))))
+    | i <- [0 .. n - 2]
+    ]
 
 -- | Divide a tournament into 'n' groups, and perform a round-robin within each
 -- group.
 groupRoundRobin :: Int -> Steps () ()
 groupRoundRobin numGroups =
-  divideInto numGroups (steps roundRobin)
+  divideInto numGroups roundRobin
 
 {-
 For comparison, the original kuachi.gg code in Rust:

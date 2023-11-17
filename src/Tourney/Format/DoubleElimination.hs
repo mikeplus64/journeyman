@@ -2,9 +2,9 @@
 
 module Tourney.Format.DoubleElimination where
 
-import Control.Lens
 import Data.Vector qualified as V
 import Tourney.Algebra
+import Tourney.Format.SingleElimination
 import Tourney.Stream
 
 --------------------------------------------------------------------------------
@@ -27,6 +27,9 @@ import Tourney.Stream
 --
 -- Thus we can use this to create quadruple elimination brackets, but not
 -- triple.
+
+doubleElimination :: Steps () ()
+doubleElimination = addLosersBracket singleElimination
 
 addLosersBracket :: Steps () () -> Steps () ()
 addLosersBracket original = do

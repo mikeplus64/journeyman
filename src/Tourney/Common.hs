@@ -9,6 +9,7 @@ module Tourney.Common (
   PlayerCount,
   Player (..),
   Slot (..),
+  fromSlot,
   RoundNo (..),
   Standings,
   createInitialStandings,
@@ -61,7 +62,10 @@ asInt = coerce
 -- position they occupy in equivalent sorting network of a round, at the
 -- beginning of that round.
 newtype Player = Player Int
-  deriving newtype (Show, Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
+  deriving newtype (Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
+
+instance Show Player where
+  show (Player a) = 'P' : Text.Show.show a
 
 newtype instance U.Vector Player = UV_Player (U.Vector Int)
 newtype instance MU.MVector s Player = MUV_Player (MU.MVector s Int)
@@ -73,8 +77,12 @@ instance U.Unbox Player
 
 -- | A slot in the sorting network
 newtype Slot = Slot Int
-  deriving newtype (Show, Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
+  deriving newtype (Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
 
+fromSlot :: Slot -> Int
+fromSlot = coerce
+
+instance Show Slot where show (Slot s) = 'S' : Text.Show.show s
 newtype instance U.Vector Slot = UV_Slot (U.Vector Int)
 newtype instance MU.MVector s Slot = MUV_Slot (MU.MVector s Int)
 deriving newtype instance VGM.MVector U.MVector Slot
@@ -96,7 +104,8 @@ infix 5 ..>
 
 -- | Round number
 newtype RoundNo = RoundNo Int
-  deriving newtype (Show, Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
+  deriving stock (Show)
+  deriving newtype (Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
 
 newtype instance U.Vector RoundNo = UV_RoundNo (U.Vector Int)
 newtype instance MU.MVector s RoundNo = MUV_RoundNo (MU.MVector s Int)
@@ -109,6 +118,7 @@ instance U.Unbox RoundNo
 
 -- | A mapping from slots to players
 newtype Standings = StandingsBySlot (U.Vector Player)
+  deriving stock (Show)
 
 type instance Index Standings = Slot
 type instance IxValue Standings = Player

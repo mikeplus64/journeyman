@@ -12,6 +12,7 @@ module Tourney.Match.Matrix (
   createMatchMatrix,
   readMatchMatrix,
   getMatch,
+  getMatches,
   getMatchResults,
   addMatch,
   setMatchResult,
@@ -25,6 +26,9 @@ import Data.IntMap.Strict qualified as IntMap
 import Data.Vector qualified as V
 import Tourney.Common
 import Tourney.Match
+
+import Control.Concurrent
+import System.IO.Unsafe
 
 -- | An abstraction around a mutable store of rounds of matches and their
 -- results. Conceptually it stores a matrix of matches by (round, player1,
@@ -55,11 +59,11 @@ getRound :: MatchMatrix -> RoundNo -> STM (TVar MatchMatrixRound)
 getRound m roundNo = do
   matrix <- readTVar (matrixRef m)
   case matrix ^. at roundNo of
+    Just t -> pure t
     Nothing -> do
       t <- newTVar MatchMatrixRound{pending = 0, complete = 0, total = 0, matches = mempty}
       modifyTVar' (matrixRef m) (at roundNo ?~ t)
       pure t
-    Just t -> pure t
 
 readMatchMatrix :: MatchMatrix -> STM (MapByRound (MapByMatches (Maybe Result)))
 readMatchMatrix mm = do
@@ -70,17 +74,16 @@ getMatches :: MatchMatrix -> RoundNo -> STM (Vector (Match, Maybe Result))
 getMatches mm roundNo = do
   rdRef <- getRound mm roundNo
   rd <- readTVar rdRef
-  pure $! V.fromListN (complete rd) (itoListOf ifolded (matches rd))
+  pure $! V.fromListN (total rd) (itoListOf ifolded (matches rd))
 
 getMatchResults :: MatchMatrix -> RoundNo -> STM (Vector MatchResult)
 getMatchResults mm roundNo = do
   rdRef <- getRound mm roundNo
   rd <- readTVar rdRef
   pure $!
-    V.fromListN
-      (complete rd)
+    V.fromList
       [ MatchResult m mr
-      | (m, mr) <- itoListOf (ifolded . _Just) (matches rd)
+      | (m, Just mr) <- itoList (matches rd)
       ]
 
 getPendingMatches :: MatchMatrix -> RoundNo -> STM (Vector Match)
@@ -100,7 +103,8 @@ haveAnyPendingMatchesWithin :: MatchMatrix -> RoundNo -> Focus -> STM Bool
 haveAnyPendingMatchesWithin mm roundNo focus = do
   rdRef <- getRound mm roundNo
   rd <- readTVar rdRef
-  pure (pending rd > 0 || ianyOf (ifolded . _Just) (\m _ -> m `matchIsWithin` focus) (matches rd))
+  let r = [m | (m, Nothing) <- itoList (matches rd), m `matchIsWithin` focus]
+  pure (not (null r))
 
 -- Matches
 ----------------------------------------
@@ -238,7 +242,7 @@ instance TraverseMin RoundNo MapByRound where
   {-# INLINE traverseMin #-}
 
 instance TraverseMax RoundNo MapByRound where
-  traverseMax f (ByRound m) = case IntMap.minViewWithKey m of
-    Just ((k, a), _) -> indexed f (RoundNo k) a <&> \v -> ByRound (IntMap.updateMin (const (Just v)) m)
+  traverseMax f (ByRound m) = case IntMap.maxViewWithKey m of
+    Just ((k, a), _) -> indexed f (RoundNo k) a <&> \v -> ByRound (IntMap.updateMax (const (Just v)) m)
     Nothing -> pure (ByRound m)
   {-# INLINE traverseMax #-}

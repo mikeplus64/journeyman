@@ -9,31 +9,35 @@ import Tourney.Match
 
 --------------------------------------------------------------------------------
 
+data SortAction
+  = Swap !Slot !Slot
+  deriving stock (Show, Eq)
+
 runMatchesBy
   :: MonadPrim s m
   => Sorter
   -> Vector MatchResult
   -> VM.MVector s (Points, a)
-  -> m ()
+  -> m [SortAction]
 runMatchesBy (Sorter focus method) results mut =
   case method of
     WinnerTakesHigh -> runSwaps results mut
     PointsAward -> runPoints focus results mut
 
-runSwaps :: MonadPrim s m => Vector MatchResult -> VM.MVector s (Points, a) -> m ()
+runSwaps :: MonadPrim s m => Vector MatchResult -> VM.MVector s (Points, a) -> m [SortAction]
 runSwaps matches ranking =
-  forM_ matches \r@MatchResult{match = Match (Slot ilow) (Slot ihigh)} -> do
-    let result = liftA2 (,) (winner r) (loser r)
-    forM_ result \((Slot w, _), (Slot l, _)) -> do
-      VM.write ranking ihigh =<< VM.read ranking w
-      VM.write ranking ilow =<< VM.read ranking l
+  executingStateT [] $
+    forM_ matches \r@MatchResult{match = Match ilow ihigh} -> do
+      when (matchIsReversal r) do
+        VM.swap ranking (fromSlot ihigh) (fromSlot ilow)
+        modify' (Swap ihigh ilow :)
 
 runPoints
   :: MonadPrim s m
   => Focus
   -> Vector MatchResult
   -> VM.MVector s (Points, a)
-  -> m ()
+  -> m [SortAction]
 runPoints focus matches scores = do
   -- Add the points accumulated in the matches here
   forM_ matches \result -> do
@@ -44,6 +48,7 @@ runPoints focus matches scores = do
       VM.modify scores (_1 -~ losePoints) losePlayer
   -- Finally, sort
   IntroSort.sortByBounds (compare `on` fst) scores (focusStart focus & asInt) (focusEnd focus & asInt)
+  pure []
 
 --------------------------------------------------------------------------------
 

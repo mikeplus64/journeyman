@@ -38,6 +38,7 @@
           # Add your package overrides here
           settings = {
             journeyman.check = true;
+
           };
 
           # Development shell configuration
