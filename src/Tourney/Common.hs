@@ -1,20 +1,21 @@
 -- | Common types and functions
---
--- # Arithmetic functions
--- Where appropriate these are overloaded to work with types that have the
--- same representation as 'Int', such as 'Player', 'Slot', and 'RoundNo'.
 module Tourney.Common (
   -- * Types
-  asInt,
+  -- $wrappers
   PlayerCount,
   Player (..),
   Slot (..),
   fromSlot,
   RoundNo (..),
+
+  -- ** Standings
   Standings,
   createInitialStandings,
   modifyStandings,
   vectorToStandings,
+
+  -- *** Conversions
+  asInt,
 
   -- ** Ranges
   (..<),
@@ -24,13 +25,17 @@ module Tourney.Common (
   SortMethod (..),
   Sorter (..),
 
-  -- ** Focus (think: slice of a vector)
+  -- ** Focus
   Focus (..),
   focusEnd,
   focusWithin,
   focusContains,
 
   -- * Arithmetic functions
+
+  -- |
+  -- Where appropriate these are overloaded to work with types that have the
+  -- same representation as 'Int', such as 'Player', 'Slot', and 'RoundNo'.
   stride2,
   nearestPow2Above,
   bitLog2,
@@ -50,7 +55,10 @@ import Text.Show (Show (show))
 type PlayerCount = Int
 
 --------------------------------------------------------------------------------
--- Type-safe around numeric types
+
+-- $wrappers
+--
+-- Type-safe wrappers around numeric types
 --
 -- This prevents mixing up two different ideas, namely 'Slot' and 'Player', due
 -- to their representations being the same.
@@ -58,9 +66,9 @@ type PlayerCount = Int
 asInt :: Coercible a Int => a -> Int
 asInt = coerce
 
--- | The basic type for a player is simply their _current_ index. That is, the
--- position they occupy in equivalent sorting network of a round, at the
--- beginning of that round.
+-- | The basic type for a player is an 'Int' denoting the "nth" best player in
+-- the tournament at the outset of it. A 'Player' is the data that gets sorted
+-- by the sorting networks constructed by tournaments.
 newtype Player = Player Int
   deriving newtype (Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
 
@@ -75,7 +83,8 @@ instance U.Unbox Player
 
 ----------------------------------------
 
--- | A slot in the sorting network
+-- | A slot denotes an index into a round of a tournament, which a 'Player'
+-- occupies.
 newtype Slot = Slot Int
   deriving newtype (Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
 
@@ -137,7 +146,8 @@ modifyStandings (StandingsBySlot v) f = StandingsBySlot (U.modify f v)
 --------------------------------------------------------------------------------
 -- Focii
 
--- | The focus of a tournament over a sorting network
+-- | The focus of a tournament over a sorting network. A good intuition is that
+-- a 'Focus' is basically an array slice over a round.
 data Focus = Focus {focusStart :: !Slot, focusLength :: !Int}
   deriving stock (Eq, Ord, Generic)
 

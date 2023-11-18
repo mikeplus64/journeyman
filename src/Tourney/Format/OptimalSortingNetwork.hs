@@ -2,12 +2,15 @@
 
 -- |
 --
--- This module takes known optimal sorting networks from the SorterHunter
--- project by Bert Dobbelaere, licensed MIT, and implements them as journeyman
--- tournaments.
+-- Copyright   : (c) Bert Dobbelaere
+-- License     : MIT
 --
--- -- **
--- MIT License
+--
+-- This module takes known optimal sorting networks from the
+-- [SorterHunter](https://github.com/bertdobbelaere/SorterHunter) project by
+-- Bert Dobbelaere, licensed MIT, and implements them as journeyman tournaments.
+--
+-- * MIT License
 --
 -- Copyright (c) 2017 bertdobbelaere
 --
@@ -28,11 +31,13 @@
 -- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
-module Tourney.Format.OptimalSortingNetwork where
+module Tourney.Format.OptimalSortingNetwork (optimalSortingNetwork) where
 
 import Data.IntMap.Strict qualified as IntMap
 import Tourney.Algebra
 
+-- | Choose the optimal sorting network for the number of players in the
+-- tournament
 optimalSortingNetwork :: Steps () ()
 optimalSortingNetwork = do
   count <- getPlayerCount

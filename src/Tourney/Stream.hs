@@ -1,42 +1,43 @@
--- |
--- Since tournaments depend on results that may not be available at the outset,
+-- | This module defines ways to create streams of matches from tournaments.
+--
+-- Since tournaments depend on results that may not be available immediately,
 -- the types for the streams here get quite complex. This is so that the streams
--- are able to expose all the matches that are "purely" available, that is all
+-- are able to expose all the matches that are /purely/ available, that is all
 -- the matches and rounds that can be extracted from a tournament immediately
 -- without having any results. For most tournaments, this is probably all
--- matches, but not for e.g. Swiss-style tournaments.
+-- matches, but some tournament styles may not have this property, such as
+-- Swiss-style.
 --
 -- At the same time, I try to validate that the tournament is valid namely that
 -- no focus is set that is not within the outer/current focus, and that no match
 -- uses slots that are not in the current focus.
-module Tourney.Stream where
+module Tourney.Stream (
+  -- * Compilation
 
---   -- * Compilation
+  -- ** Creating a compiler environment
+  StreamEnv,
+  createStreamEnv,
+  withGetStandings,
+  noStandings,
 
---   -- ** Creating a compiler environment
---   StreamEnv,
---   createStreamEnv,
---   withGetStandings,
---   noStandings,
+  -- ** Main compilation functions
+  Tourney (..),
+  TourneyStream,
+  CompileError (..),
+  Compiled,
+  createTourney,
+  runTourney,
+  RoundStream (..),
+  createRoundStream,
+  MatchStream (..),
+  createMatchStream,
 
---   -- ** Main compilation functions
---   Tourney (..),
---   TourneyStream,
---   CompileError (..),
---   Compiled,
---   createTourney,
---   runTourney,
---   RoundStream (..),
---   createRoundStream,
---   MatchStream (..),
---   createMatchStream,
-
---   -- * Inspection
---   Inspection (..),
---   Inspect (..),
---   runInspection,
---   pureMatchesByRound,
--- ) where
+  -- * Inspection
+  Inspection (..),
+  Inspect (..),
+  runInspection,
+  pureMatchesByRound,
+) where
 
 import Control.Lens qualified as L
 import Control.Monad.Except
@@ -122,27 +123,12 @@ createRoundStream t0 = RoundStream \StreamEnv{getStandings, focus = focus0} ->
         pure do
           standings <- S.lift (getStandings focus)
           go (byStandings standings) `runReader` focus
-      Sort meth t -> S.map (Sort meth) <$> go t
+      Sort meth t -> do
+        a <- go t
+        -- Seems weird. It also is weird. Oh well.
+        pure (a <> S.yield (Sort meth Empty))
   in
     go t0 `runReader` focus0
-
-applyOffset :: Int -> Tournament 'TOne -> Tournament 'TOne
-applyOffset offs = \case
-  One (Match a b) -> One (Match (a + Slot offs) (b + Slot offs))
-  Empty -> Empty
-  Overlay a b -> Overlay (applyOffset offs a) (applyOffset offs b)
-  Sort s t -> Sort s (applyOffset offs t)
-  ByPlayerCount f -> ByPlayerCount (applyOffset offs . f)
-  ByStandings f -> ByStandings (applyOffset offs . f)
-
-applyFocus :: Focus -> Tournament 'TOne -> Tournament 'TOne
-applyFocus focus@(Focus s n) = \case
-  One (Match a b) -> One (Match (a + s) (b + s))
-  Empty -> Empty
-  Overlay a b -> Overlay (applyFocus focus a) (applyFocus focus b)
-  Sort method t -> Sort method (applyFocus focus t)
-  ByPlayerCount f -> f n
-  ByStandings f -> ByStandings (applyFocus focus . f)
 
 overlay2
   :: Monad m

@@ -94,13 +94,14 @@ alignedPointsBinOp f (Points xs) (Points ys) = Points (uncurry (U.zipWith f) (en
 
 -- | The basic type for a match is a pair of players. The 'Match' type ensures
 -- by construction that the "lower" player always takes the first slot of the
--- 'Match', and the higher the second.
---
--- Many functions in this library are overloaded so that you can represent
--- matches as ordinary Haskell tuples.
+-- 'Match', and the higher the second. Many functions in this library are
+-- overloaded so that you can represent matches as ordinary Haskell tuples.
 --
 -- It is a runtime error to construct a match using the same player twice.
--- type Match = Match Player
+--
+-- The first field of a 'Match' is always the smaller value. Matches with one
+-- invalid 'Slot' for any reason should be interpretted as a bye for the valid
+-- 'Slot' in that match.
 data Match = Match_ !Slot !Slot
   deriving stock (Eq, Ord, Generic)
 

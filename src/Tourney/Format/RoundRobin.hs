@@ -4,41 +4,34 @@ import Tourney.Algebra
 
 --------------------------------------------------------------------------------
 
+-- |
 -- Version 2: I begin implementing this using functions from indices to values,
 -- rather than lists, since I suspected we'll be able to express the rotate
 -- function much more simply, and without any infinite lists, while perhaps
 -- discovering a "simpler" form for the round robin circle method algorithm:
 --
+-- @
 -- 0 -> [0 .. n]
 -- 1 -> 0 : n : [1 .. n - 1]
 -- 2 -> 0 : n : n - 1 : [2 .. n - 2]
 --
 -- ==>
 --      i -> 0 : [n .. n - i + 1] ++ [i .. n - i]
---
--- In the end, what I find is that rather than needing the tournament eDSL very
--- much at all, a "functional" approach to creating this ends up being much
--- superior, in terms of clarity and conciseness, to existing suggested
--- solutions.
---
--- That said, now that we have a 'roundRobin' definition, using it to create
--- group stages (using eDSL primitives) becomes trivial.
---
-
--- XXX Set the sorting method!
-
+-- @
 roundRobin :: Steps () ()
-roundRobin = do
+roundRobin = points do
   count <- getPlayerCount
   let (!midpoint, !r) = count `quotRem` 2
   let !n = count + r
-  steps
+  mapM_
+    (round_ . map match)
     [ foldAround midpoint (map Slot (0 : ((n - i) ..< n) ++ (1 ..< (n - i))))
     | i <- [0 .. n - 2]
     ]
 
 -- | Divide a tournament into 'n' groups, and perform a round-robin within each
--- group.
+-- group. Simply applies the 'divideInto' combinator.
+-- @groupRoundRobin numGroups = divideInto numGroups roundRobin@
 groupRoundRobin :: Int -> Steps () ()
 groupRoundRobin numGroups =
   divideInto numGroups roundRobin

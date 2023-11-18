@@ -76,52 +76,34 @@ common shared
     ViewPatterns
 
   build-depends:
+    , acc
     , aeson
     , array
-    , base                       >=4.13.0.0 && <4.18.0.0.0
+    , base               >=4.13.0.0 && <4.18.0.0.0
     , brick
-    , closed
     , colour
-    , constraints
     , containers
     , data-default
-    , data-fix
     , directory
     , dlist
-    , effectful
-    , filepath
-    , fin
-    , finite-typelits
-    , free
     , generic-lens
-    , hashable
     , kan-extensions
     , lens
-    , linear
     , mtl
     , nonempty-zipper
     , palette
-    , pipes
     , pretty-simple
-    , prettyprinter
-    , prettyprinter-combinators
     , primitive
-    , profunctors
     , PyF
-    , recursion-schemes
     , relude
     , semialign
     , smallcheck
     , stm
-    , streaming
-    , template-haskell
     , these
-    , time
     , transformers
     , vector
     , vector-algorithms
     , vector-builder
-    , vector-sized
     , vty
     , with-utf8
 
@@ -130,17 +112,10 @@ common shared
 library
   import:          shared
   hs-source-dirs:  src
-
-  -- cabal-fmt: expand ./src
+  other-modules:   Prelude
   exposed-modules:
-    Control.Monad.State.Remembering
-    Data.Counting
     Data.Dependency
-    Data.Function.Known
-    Data.Function.Vector
-    Data.MinMax
     Data.Tuple.Ordered
-    Prelude
     Tourney.Algebra
     Tourney.Algebra.Builder
     Tourney.Algebra.Unified

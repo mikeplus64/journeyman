@@ -33,6 +33,7 @@ module Tourney.Algebra.Builder (
   foldAroundMidpoint,
   swaps,
   points,
+  barrier,
 
   -- * Reduction back into a 'Tournament'
   inspect,
@@ -252,8 +253,11 @@ withSort method b =
 swaps :: Merge t => Builder t a a -> Builder t r ()
 swaps = withSort WinnerTakesHigh
 
-points :: Merge t => Builder t a a -> Builder t r ()
-points = withSort PointsAward
+points :: Merge t => Builder t () () -> Builder t r ()
+points = withSort PointsAward . barrier
+
+barrier :: Merge t => Builder t () () -> Builder t r ()
+barrier = tellBuilder . execBuilder id
 
 -- | Set the offset of the inner builder
 withOffset :: Merge t => Int -> Builder t a a -> Builder ('TMod t) r ()
@@ -274,7 +278,6 @@ divideInto denom builder =
     mkFocii Focus{focusStart, focusLength} = do
       let (m, _r) = divMod focusLength denom
       g <- [0 .. denom - 1]
-      traceM [fmt|mkFocii {focusStart:s} {focusLength} {m} {g}|]
       pure Focus{focusStart = focusStart + Slot (g * m), focusLength = m}
 
 -- | Fold a list of players together around a midpoint of the list.

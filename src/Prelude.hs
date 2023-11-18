@@ -40,9 +40,6 @@ module Prelude (
   -- ** String formatting
   module PyF,
 
-  -- ** Concurrency
-  module Control.Concurrent.Async,
-
   -- * Convenience types
   PrimMonad (..),
   MonadPrim,
@@ -74,7 +71,6 @@ module Prelude (
   thawArray,
 ) where
 
-import Control.Concurrent.Async
 import Control.Lens hiding (universe, (??))
 import Control.Monad.Primitive (MonadPrim, PrimMonad (..))
 import Control.Monad.ST.Strict

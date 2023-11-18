@@ -1,55 +1,61 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
--- | Dependant streams of values
+-- | Dependant streams of values.
 --
--- That is, a structure that can be thought of as producing many values, but
--- optionally (but explicitly!) depending on some other.
+-- A structure that can be thought of as producing many values, but optionally
+-- (but explicitly!) depending on some other.
 --
 -- This lets use the same syntax for creating structures that do or do not
 -- depend on some outside data, while still being able to inspect those
--- structures that don't ultimately need the dependency.
---
--- It is trivially isomorphic to stream types used by the "streaming" library
--- under Reader-like monads. Those reader-like monads are generalised here to
--- support the general case of readers that immediately hold the data you want,
--- or readers that require an action to be ran to get the data. See
--- 'MonadRequest'
+-- structures that don't ultimately need the dependency. It is trivially
+-- isomorphic to stream types used by the
+-- [streaming](https://hackage.haskell.org/package/streaming) library and
+-- heavily inspired by that, with the main difference being that the functions
+-- here allow for streams to be inspected without necessarily going through the
+-- underlying stream monad - see 'pop'.
 module Data.Dependency (
   -- * Base type
   Stream (..),
   StreamM (..),
-  peek,
+
+  -- ** Constructing streams
+  yield,
+  lift,
+
+  -- ** Inspecting streams
   Pop (..),
   pop,
-  forcePop,
   popForced,
-  map,
+  forcePop,
+  peek,
   peekFoldMap,
   peekAll,
   peekAllS,
-  yield,
-  await,
-  lift,
+  null,
+
+  -- ** Mapping streams
+  map,
+  hoist,
+  hoistT,
   for,
   for_,
   fold,
   foldM,
   ifoldM,
-  hoist,
-  hoistT,
+
+  -- ** Composing streams
   alignWith,
-  toVector,
-  toList,
-  null,
-  pureVector,
-  pureList,
   Group (..),
   group,
   groupr,
 
-  -- * Request monads
-  MonadRequest (..),
-  MonadReaderRequest,
+  -- ** Reducing streams to vectors or lists
+  toVector,
+  toList,
+  pureVector,
+  pureList,
+
+  -- * Request helpers
   once,
   cached,
 ) where
@@ -290,9 +296,6 @@ map f = \case
 yield :: a -> StreamM m a ()
 yield a = Got a (Done ())
 
-await :: forall r a m. MonadRequest r m => StreamM m a r
-await = Wait (pure <$> request @r)
-
 -- | Natural transformation over the inner monad of a stream.
 hoist :: Functor f => (forall x. f x -> g x) -> StreamM f a r -> StreamM g a r
 hoist f = \case
@@ -438,33 +441,6 @@ group f = go0 . pop
       PopDone _ -> yield x
 
 --------------------------------------------------------------------------------
-
--- | A monad for reader-like monads where you can request a particular bit of
--- data. For readers where the data is immediately available, it is the same as
--- 'Control.Monad.Reader.ask'. For readers where the data is embedded within
--- something else, like needing to perform ''IO', it acts more like the 'await'
--- keyword of many popular programming languages.
-class Monad m => MonadRequest d m where
-  request :: m d
-
--- | See 'MonadReaderRequest'
-instance MonadReaderRequest d' d m => MonadRequest d (ReaderT d' m) where request = requestReader
-
--- Plain functions are trivial 'MonadRequest's
-instance d ~ d' => MonadRequest d ((->) d') where request = id
-
--- Provide two Reader instances:
---
--- 1. ReaderT d m a ~ plain readers
---
--- 2. ReaderT (m d) m a ~ "action" readers, requiring something to be ran before
--- getting the 'd' value.
---
--- Overlapping instances pragma should ensure that there is not conflict
--- between the two.
-class Monad m => MonadReaderRequest d' d m where requestReader :: ReaderT d' m d
-instance {-# OVERLAPPING #-} (Monad m, d ~ d') => MonadReaderRequest (m d') d m where requestReader = ReaderT id
-instance {-# OVERLAPPABLE #-} (Monad m, d ~ d') => MonadReaderRequest d' d m where requestReader = ReaderT pure
 
 -- | Perform an action only once. This may be useful for ensuring a dependency
 -- only is fetched once.
