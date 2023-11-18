@@ -1,48 +1,88 @@
 # -*- org-latex-pdf-process: ("tectonic -Z shell-escape --outdir=%o %f "); org-latex-src-block-backend: minted; org-latex-minted-options: (("frame" "") ("fontsize" "\\normalsize") ("linenos" "")); -*-
 #+title: An Algebraic Functional Domain-Specific Language for Tournament Structures
 #+subtitle: Algebraic Graph Construction of Sorting-Network-like Structures
-#+author: Mike Ledger, supervised by Ranald Clouston
+#+author: Mike Ledger, supervised by Ranald Clouston, at Australian National University
 #+keywords: tournaments,edsl,haskell,fp,graphs,sorting,interactive,tui
 #+email: u5582972@anu.edu.au
 #+date: November 20 2023
 #+options: num:t
 #+options: toc:nil
 #+bibliography: draft.bib
+#+cite_export: csl ieee.csl
 #+latex_class: article
-#+latex_class_options: [a4,11pt,final]
-#+latex_header: \usepackage[margin=1.2in,bmargin=1.0in,tmargin=1.0in]{geometry}
+#+latex_class_options: [a4,11pt,twoside,final]
+#+latex_header: \usepackage{geometry}
+#+latex_header: \newgeometry{bottom=2in,top=2in,inner=1in,outer=1in}
 #+latex_header: \usepackage{merriweather}
 #+latex_header: \usepackage{hyperref}
+#+latex_header: \usepackage{minted}
+#+latex_header: \usepackage{multicol}
 #+latex_header: \newcommand{\point}[1]{\noindent \textbf{#1}}
+
+#+latex_header: \usepackage{mathtools} % DeclarePairedDelimiter
+#+latex_header: \DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+#+latex_header: \DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+
 
 #+latex: \begin{abstract}
 An Embedded Domain-Specific Language (commonly known as eDSL) is developed for
 relatively easy expression and analysis of arbitrary tournament structures. The
-core tournament structure type derives from algebraic representations of graphs
-and sorting networks, enabling composition in terms of either interleaving or
-sequencing. The core design balances between allowing arbitrary logic within a
-tournament structure and what static analysis can be achieved given such a
-structure. Metrics such as length, fairness, resource use, and reliability, are
-analysed on a variety of tournament structures. Similarity between sorting
-algorithms - in particular sorting networks - is observed and common tournament
-structures are contrasted with sorting networks to see how viable they can be as
-tournament structures. A tool is also developed to perform and visualise
-tournaments described within the eDSL.
+core tournament structure type inspired by work on algebraic graph
+representations in Haskell, and sorting networks, enabling composition in terms
+of either interleaving or sequencing. The core design balances between allowing
+arbitrary logic within a tournament structure and what static analysis can be
+achieved given such a structure. Metrics such as length, fairness, resource use,
+and reliability, are analysed on a variety of tournament structures. Similarity
+between sorting algorithms - in particular sorting networks - is observed and
+common tournament structures are contrasted with sorting networks to see how
+viable they can be as tournament structures. A tool is also developed to perform
+and visualise tournaments described within the eDSL.
 #+latex: \end{abstract}
 #+latex: \newpage
-#+toc: headlines 2
-#+latex: \newpage
 
-* Background and Introduction
+#+latex: \newgeometry{margin=2cm}
+#+latex: \begin{multicols}{2}
+#+toc: headlines 2
+#+latex: \end{multicols}
+
+#+latex: \newpage
+#+latex: \newgeometry{top=2.5cm,bottom=2.5cm,left=4cm,right=2.5cm}
+
+* Introduction
 
 Tournament structures are used to determine a ranking of players in a game, such
 as a real-life sport or an eSport. Many different tournament structures are
 employed in real games, for a variety of reasons; for instance length, fairness,
-resources available, are all determining factors.
+resources available, are all determining factors. The choice of what tournament
+structure is most appropriate for a given set of circumstance is mostly an open
+one, and many tournaments are ran as a composition of other tournament types.
 
+There is then a possible contribution to be made in a software tool that would
+help design and evaluate tournament structures. This project encapsulates an
+effort to do that over the course of my undergraduate Advanced Computing Project
+(COMP4560), by creating a Embedded Domain-Specific Language for tournament
+description and evaluation, as a Haskell library. The software library developed
+for this project is available online on [[https://github.com/mikeplus64/journeyman][GitHub]], which also hosts [[https://mikeplus64.github.io/journeyman/][API
+documentation]].
+
+#+latex: \newpage
+
+* Background
+
+The economics of sports and eSports tournaments are also worth noting here.  The
+social impact of this is out of scope for this project, but clearly with [XXX:
+growth in Twitch/stream viewerships] these tournaments are becoming a
+significant part of the zeitgeist.
+
+
+
+* Old Background
+
+* Old Aims
 1. To create a computer language that enables the description of common
    tournament structures, and also to enable creation of new tournament
    structures as compositions of existing ones.
+
 2. To create an interpreter for this language that can evaluate tournament
    descriptions; to be able to run the tournaments described by the language
    defined in Goal 1.
@@ -61,12 +101,6 @@ their placement in a tournament was unfair, or a player's seeding unduly caused
 them to place higher or lower than they "should" have according to an assumed
 skill level. I believe avoiding these scenarios would improve player
 satisifaction and enjoyment.]
-
-The economics of sports and eSports tournaments are also worth noting here, as
-year-on-year the prize-pools of tournaments have grown by [XXX: sports and
-eSports growth]. The social impact of this is out of scope for this project, but
-clearly with [XXX: growth in Twitch/stream viewerships] these tournaments are
-becoming a significant part of the zeitgeist.
 
 A key observation of this project is the existence of an equivalent sorting
 network to many tournament structures. In particular, any tournament structure

@@ -24,3 +24,5 @@ cabal.project.local~
 .direnv
 result
 result-*
+/.directory
+.directory
