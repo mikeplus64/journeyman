@@ -1,0 +1,10 @@
+#+title: Claims
+
+* TODO Swiss
+
+* TODO Static analysis
+** Length
+** Parallel games
+
+* TODO ELO
+** Rematch likelihood
