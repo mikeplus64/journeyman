@@ -47,7 +47,7 @@ data StandingsUpdate = StandingsUpdate
 
 createIState :: PlayerCount -> STM IStateVar
 createIState count = do
-  matrix <- createMatchMatrix
+  matrix <- createMatchMatrix count
   let standings = V.generate count \i -> (0 :: Points, Player i)
   let state0 =
         IState

@@ -10,6 +10,10 @@ docs:
 repl *ARGS:
   cabal repl {{ARGS}}
 
+# Run cabal
+cabal *ARGS:
+  cabal {{ARGS}}
+
 # Autoformat the project tree
 fmt:
   treefmt

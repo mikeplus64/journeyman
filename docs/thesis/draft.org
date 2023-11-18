@@ -1,41 +1,44 @@
-#+title: A DSL for Tournaments
-#+author: Mike Ledger <u5582972@anu.edu.au>
-#+startup: overview indent
-#+options: timestamp:nil
-#+options: toc:nil
+# -*- org-latex-pdf-process: ("tectonic -Z shell-escape --outdir=%o %f "); org-latex-src-block-backend: minted; org-latex-minted-options: (("frame" "") ("fontsize" "\\normalsize") ("linenos" "")); -*-
+#+title: An Algebraic Functional Domain-Specific Language for Tournament Structures
+#+subtitle: Algebraic Graph Construction of Sorting-Network-like Structures
+#+author: Mike Ledger, supervised by Ranald Clouston
+#+keywords: tournaments,edsl,haskell,fp,graphs,sorting,interactive,tui
+#+email: u5582972@anu.edu.au
+#+date: November 20 2023
 #+options: num:t
+#+options: toc:nil
 #+bibliography: draft.bib
 #+latex_class: article
-#+latex_class_options: [a4,12pt,final]
-#+latex_header: \usepackage[left=1.5cm,top=2cm,right=1.5cm,bottom=2cm]{geometry}
+#+latex_class_options: [a4,11pt,final]
+#+latex_header: \usepackage[margin=1.2in,bmargin=1.0in,tmargin=1.0in]{geometry}
+#+latex_header: \usepackage{merriweather}
 #+latex_header: \usepackage{hyperref}
-#+latex_header: \usepackage{svg}
-#+latex_header: \usepackage{url}
-#+latex_header: \usepackage{utopia}
-#+latex_header: \usepackage{appendix}
-#+latex_header: \usepackage{caption}
-#+latex_header: \usepackage{graphicx}
-#+latex_header: \usepackage{siunitx}
-#+latex_header: \usepackage{listings}
-#+latex_header: \usepackage{minted}
-#+latex_header: \usepackage{multicol}
-#+latex_header: \newenvironment{itquote}
-#+latex_header:   {\begin{quote}\itshape}
-#+latex_header:   {\end{quote}\ignorespacesafterend}
-#+latex_header: \captionsetup[figure]{labelfont={bf},name={Fig.},labelsep=period}
-#+latex_header: \usepackage{mathtools}
-#+latex_header: \DeclarePairedDelimiter\ceil{\lceil}{\rceil}
-#+latex_header: \DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
-#+latex: \begin{multicols}{2}
+#+latex_header: \newcommand{\point}[1]{\noindent \textbf{#1}}
 
-* Functional Tournament Design eDSL
+#+latex: \begin{abstract}
+An Embedded Domain-Specific Language (commonly known as eDSL) is developed for
+relatively easy expression and analysis of arbitrary tournament structures. The
+core tournament structure type derives from algebraic representations of graphs
+and sorting networks, enabling composition in terms of either interleaving or
+sequencing. The core design balances between allowing arbitrary logic within a
+tournament structure and what static analysis can be achieved given such a
+structure. Metrics such as length, fairness, resource use, and reliability, are
+analysed on a variety of tournament structures. Similarity between sorting
+algorithms - in particular sorting networks - is observed and common tournament
+structures are contrasted with sorting networks to see how viable they can be as
+tournament structures. A tool is also developed to perform and visualise
+tournaments described within the eDSL.
+#+latex: \end{abstract}
+#+latex: \newpage
+#+toc: headlines 2
+#+latex: \newpage
 
 * Background and Introduction
 
-My project is a study of tournament structures. That is, the structures that are
-used to determine a ranking of players in a game, such as a real-life sport or
-an eSport. There are three aims of this project which will be expanded upon in
-later sections of this thesis:
+Tournament structures are used to determine a ranking of players in a game, such
+as a real-life sport or an eSport. Many different tournament structures are
+employed in real games, for a variety of reasons; for instance length, fairness,
+resources available, are all determining factors.
 
 1. To create a computer language that enables the description of common
    tournament structures, and also to enable creation of new tournament
@@ -72,7 +75,7 @@ matches can be expressed in Compare-and-Swap Matches (CASM), have an equivalent
 sorting network construction. A hierarchy of match types is then constructed,
 and it is shown that CASM is a specialisation of Points Matches (PM), from which
 we can also construct tournaments based on ranking systems such as Elo
-[[cite:@elo]]. These are common
+((cite:@elo)). These are common
 
 This fact that a tournament can be constructed from any comparison-based sorting
 algorithm (swapping comparison with a game/match[fn::*Game* shall be used to
@@ -656,4 +659,3 @@ Link to online documentation, package, source repository, etc.
 * References
 
 #+print_bibliography:
-#+latex: \end{multicols}

@@ -32,6 +32,7 @@ import Graphics.Vty.Input.Events
 import Tourney.Algebra (Depth (..), Tournament, execSteps)
 import Tourney.Common
 import Tourney.Format.DoubleElimination
+import Tourney.Format.ICantBelieveItCanSort
 import Tourney.Format.InsertionSort
 import Tourney.Format.OptimalSortingNetwork
 import Tourney.Format.RoundRobin
@@ -53,6 +54,7 @@ knownTournaments =
   , ("Optimal Sorting Network", execSteps id optimalSortingNetwork)
   , ("Insertion Sort (Naiive)", execSteps id insertionSortNaiive)
   , ("Insertion Sort", execSteps id insertionSort)
+  , ("ICan'tBelieveItCanSort", execSteps id iCan'tBelieveItCanSort)
   ]
 
 knownTournamentsLen :: Int

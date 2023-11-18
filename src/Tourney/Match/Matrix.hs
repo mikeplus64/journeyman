@@ -30,8 +30,9 @@ import Tourney.Match
 -- | An abstraction around a mutable store of rounds of matches and their
 -- results. Conceptually it stores a matrix of matches by (round, player1,
 -- player2), and a variable for the current round.
-newtype MatchMatrix = MatchMatrix
-  { matrixRef :: TVar (MapByRound (TVar MatchMatrixRound))
+data MatchMatrix = MatchMatrix
+  { matrixRef :: !(TVar (MapByRound (TVar MatchMatrixRound)))
+  , playerCount :: !PlayerCount
   }
   deriving stock (Generic)
 
@@ -46,8 +47,10 @@ data MatchMatrixRound = MatchMatrixRound
 -- Construction
 ----------------------------------------
 
-createMatchMatrix :: STM MatchMatrix
-createMatchMatrix = MatchMatrix <$> newTVar Empty
+createMatchMatrix :: PlayerCount -> STM MatchMatrix
+createMatchMatrix playerCount = do
+  matrixRef <- newTVar Empty
+  pure MatchMatrix{matrixRef, playerCount}
 
 -- Rounds
 ----------------------------------------
@@ -108,14 +111,23 @@ haveAnyPendingMatchesWithin mm roundNo focus = do
 
 -- | Add a match. It must not exist already in the current round
 addMatch :: MatchMatrix -> RoundNo -> Match -> STM ()
-addMatch m roundNo match = do
-  roundRef <- getRound m roundNo
-  roundM <- readTVar roundRef
-  when (isNothing (roundM ^. #matches . at match)) do
-    modifyTVar' roundRef $ execState do
-      #matches . at match ?= Nothing
-      #pending += 1
-      #total += 1
+addMatch mm roundNo match =
+  -- Ignore matches that are outside of the player count
+  --
+  -- XXX This enforces a particular interpretation of byes under a points
+  -- sorting system. With swaps it's fine, because a bye just maintains the
+  -- position of the "real" player, which is the same as winning the match if
+  -- they were two real players. But for points, a bye could mean points are
+  -- awarded by default anyway; currently, this logic enforces that no points
+  -- can be awarded from a bye under points sorting.
+  when (match `matchIsWithin` Focus 0 (playerCount mm)) do
+    roundRef <- getRound mm roundNo
+    roundM <- readTVar roundRef
+    when (isNothing (roundM ^. #matches . at match)) do
+      modifyTVar' roundRef $ execState do
+        #matches . at match ?= Nothing
+        #pending += 1
+        #total += 1
 
 -- | Get a match
 getMatch :: MatchMatrix -> RoundNo -> Match -> STM (Maybe (Maybe Result))

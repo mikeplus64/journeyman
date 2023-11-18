@@ -76,11 +76,8 @@ common shared
     ViewPatterns
 
   build-depends:
-    , acc
     , aeson
-    , algebraic-graphs
     , array
-    , async
     , base                       >=4.13.0.0 && <4.18.0.0.0
     , brick
     , closed
@@ -118,7 +115,6 @@ common shared
     , stm
     , streaming
     , template-haskell
-    , text-ansi
     , these
     , time
     , transformers
@@ -150,8 +146,12 @@ library
     Tourney.Algebra.Unified
     Tourney.Common
     Tourney.Format.DoubleElimination
+    Tourney.Format.ICantBelieveItCanSort
+    Tourney.Format.InsertionSort
+    Tourney.Format.OptimalSortingNetwork
     Tourney.Format.RoundRobin
     Tourney.Format.SingleElimination
+    Tourney.Format.Swiss
     Tourney.Match
     Tourney.Match.Matrix
     Tourney.SortingNetwork

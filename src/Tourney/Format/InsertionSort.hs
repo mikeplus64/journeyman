@@ -2,12 +2,6 @@ module Tourney.Format.InsertionSort where
 
 import Tourney.Algebra
 
-{-
-
-Consider the pseudocode for insertion code, provided by the relevant Wikipedia
-article:
--}
-
 insertionSortNaiive :: Steps () ()
 insertionSortNaiive = do
   n <- getPlayerCount
