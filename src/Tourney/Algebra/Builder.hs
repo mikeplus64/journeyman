@@ -8,6 +8,7 @@ module Tourney.Algebra.Builder (
   Steps,
   round_,
   rounds_,
+  asRound,
 
   -- * Rounds
   AsRound (..),
@@ -23,21 +24,22 @@ module Tourney.Algebra.Builder (
   overlays,
   overlays_,
   getStandings,
-  getFocus,
   getPlayerCount,
   withFocus,
   withFocii,
-  withSortMethod,
   withOffset,
   divideInto,
   foldAround,
   foldAroundMidpoint,
+  swaps,
+  points,
 
   -- * Reduction back into a 'Tournament'
   inspect,
+  execBuilder,
   execSteps,
-  runSteps,
   execRound,
+  runSteps,
   runRound,
   getAccum,
 ) where
@@ -60,6 +62,9 @@ class Merge (t :: Depth) where
   merge :: [Tournament t] -> Tournament t
 
 instance Merge TOne where
+  merge = U.overlay
+
+instance Merge ('TMod t) where
   merge = U.overlay
 
 instance Merge TMany where
@@ -119,9 +124,6 @@ instance (AsSteps a r, r ~ ()) => AsSteps (PlayerCount -> a) r where
 instance (AsSteps a r, r ~ ()) => AsSteps (Standings -> a) r where
   steps f = tellBuilder $ ByStandings $ execSteps id . steps @a @r . f
 
-instance (AsSteps a r, r ~ ()) => AsSteps (Focus -> a) r where
-  steps f = tellBuilder $ ByFocus $ execSteps id . steps @a @r . f
-
 -- Basic syntax for 'Steps'
 ----------------------------------------
 
@@ -131,7 +133,7 @@ class Monad m => MonadRounds m where
   default addRound :: (m ~ t i, MonadTrans t, MonadRounds i) => Round () () -> m ()
   addRound r = lift (addRound r)
 
-instance MonadRounds (Steps r) where addRound r = tellBuilder (LiftTMany (execRound id r))
+instance MonadRounds (Steps r) where addRound r = tellBuilder (LiftTOne (execRound id r))
 instance MonadRounds m => MonadRounds (StateT s m)
 instance MonadRounds m => MonadRounds (ReaderT s m)
 
@@ -142,6 +144,9 @@ round_ = addRound . toRound @a
 -- | Add some rounds to steps
 rounds_ :: AsRound r () => [r] -> Steps s ()
 rounds_ = mapM_ round_
+
+asRound :: Round r a -> Round r a
+asRound = id
 
 --------------------------------------------------------------------------------
 -- Rounds
@@ -180,9 +185,6 @@ instance (AsRound a r, r ~ ()) => AsRound (PlayerCount -> a) r where
 
 instance (AsRound a r, r ~ ()) => AsRound (Standings -> a) r where
   toRound f = tellBuilder $ ByStandings $ execRound id . toRound @a . f
-
-instance (AsRound a r, r ~ ()) => AsRound (Focus -> a) r where
-  toRound f = tellBuilder $ ByFocus $ execRound id . toRound @a . f
 
 -- Basic syntax for 'Round'
 ----------------------------------------
@@ -227,33 +229,34 @@ getStandings :: Merge t => Builder t () Standings
 getStandings = Builder $ ContT \f -> do
   add (DL.singleton (ByStandings (mergeAccumT . f)))
 
--- | Retrieve the current focus
-getFocus :: Merge t => Builder t () Focus
-getFocus = Builder $ ContT \f -> do
-  add (DL.singleton (ByFocus (mergeAccumT . f)))
-
 -- | Retrieve the current player count
 getPlayerCount :: Merge t => Builder t () PlayerCount
 getPlayerCount = Builder $ ContT \f ->
   add (DL.singleton (ByPlayerCount (mergeAccumT . f)))
 
 -- | Set the focus of the inner builder
-withFocus :: Merge t => Slot -> Int -> Builder t a a -> Builder t r ()
+withFocus :: Merge t => Slot -> Int -> Builder t a a -> Builder ('TMod t) r ()
 withFocus focusStart focusLength =
   withFocii (const [Focus{focusStart, focusLength}])
 
 -- | Set the focii of the inner builder
-withFocii :: Merge t => (Focus -> [Focus]) -> Builder t a a -> Builder t r ()
+withFocii :: Merge t => (Focus -> [Focus]) -> Builder t a a -> Builder ('TMod t) r ()
 withFocii makeFocii b =
   tellBuilder (Modify (SetFocus makeFocii) (execBuilder id b))
 
 -- | Set the sort method of the inner builder
-withSortMethod :: Merge t => SortMethod -> Builder t a a -> Builder t r ()
-withSortMethod method b =
-  tellBuilder (Modify (SetSortMethod method) (execBuilder id b))
+withSort :: Merge t => SortMethod -> Builder t a a -> Builder t r ()
+withSort method b =
+  tellBuilder (Sort method (execBuilder id b))
+
+swaps :: Merge t => Builder t a a -> Builder t r ()
+swaps = withSort WinnerTakesHigh
+
+points :: Merge t => Builder t a a -> Builder t r ()
+points = withSort PointsAward
 
 -- | Set the offset of the inner builder
-withOffset :: Merge t => Int -> Builder t a a -> Builder t r ()
+withOffset :: Merge t => Int -> Builder t a a -> Builder ('TMod t) r ()
 withOffset offs b =
   tellBuilder (Modify (SetOffset offs) (execBuilder id b))
 
@@ -263,15 +266,16 @@ withOffset offs b =
 
 -- | Given a denominator @n@ and a builder, split the tournament into @n@
 -- sub-tournaments and run the builder on each
-divideInto :: Merge t => Int -> Builder t () () -> Builder t () ()
-divideInto denom builder = do
-  count <- getPlayerCount
-  let (m, r) = quotRem count denom
-  let groupSize = m + r
-  overlays_
-    [ withFocus (Slot (groupNo * groupSize)) groupSize builder
-    | groupNo <- [0 .. denom - 1]
-    ]
+divideInto :: Int -> Steps () () -> Steps () ()
+divideInto denom builder =
+  tellBuilder (LiftTMod (Modify (SetFocus mkFocii) inner))
+  where
+    inner = execBuilder id builder
+    mkFocii Focus{focusStart, focusLength} = do
+      let (m, _r) = divMod focusLength denom
+      g <- [0 .. denom - 1]
+      traceM [fmt|mkFocii {focusStart:s} {focusLength} {m} {g}|]
+      pure Focus{focusStart = focusStart + Slot (g * m), focusLength = m}
 
 -- | Fold a list of players together around a midpoint of the list.
 foldAround :: Int -> [Slot] -> [Match]

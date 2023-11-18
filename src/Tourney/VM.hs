@@ -2,7 +2,8 @@ module Tourney.VM (
   VM,
   setup,
   loop,
-  StepCodeEvent,
+  StepCodeEvent (..),
+  StepContinue (..),
   getCodeSoFar,
   getMatches,
   getStandingsHistory,
@@ -10,6 +11,7 @@ module Tourney.VM (
   getRoundNo,
   peekCode,
   setMatchResult,
+  getMatch,
 
   -- * Re-exports
   Code,
@@ -60,7 +62,7 @@ instance PrimMonad WithVM where
 
 setup :: Tournament t -> PlayerCount -> IO VM
 setup t count = do
-  vmStream <- newIORef $! compile t (createStreamEnv count & withGetStandings getStandings)
+  vmStream <- newIORef $! compile t (createStreamEnv count & withGetStandings Tourney.VM.getStandings)
   vmIState <- atomically (createIState count)
   pure VM{vmPlayerCount = count, vmStream, vmIState}
 
@@ -107,6 +109,14 @@ setMatchResult VM{vmIState = IStateVar var} roundNo match result =
     if roundNo == curRoundNo
       then True <$ MatchMatrix.setMatchResult matrix roundNo match result
       else pure False
+
+getMatch :: VM -> RoundNo -> Match -> IO (Maybe (Maybe Result))
+getMatch VM{vmIState = IStateVar var} roundNo match =
+  atomically do
+    IState{roundNo = curRoundNo, matrix} <- readTVar var
+    if roundNo == curRoundNo
+      then MatchMatrix.getMatch matrix roundNo match
+      else pure Nothing
 
 getCodeSoFar :: VM -> IO Code
 getCodeSoFar VM{vmStream} = codeSoFar <$> readIORef vmStream

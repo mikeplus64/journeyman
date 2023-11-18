@@ -13,23 +13,27 @@ import Brick.Forms
 import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
 import Brick.Widgets.Center
+import Brick.Widgets.Dialog
+import Brick.Widgets.Edit (editAttr, editFocusedAttr)
+import Brick.Widgets.Table (renderTable, surroundingBorder, table)
 import Data.Align (alignWith)
-import Data.Char (isNumber)
 import Data.Colour qualified as Colour
 import Data.Colour.CIE qualified as Colour
 import Data.Colour.Names qualified as Colour
 import Data.Colour.Palette.BrewerSet qualified as Colour
 import Data.Colour.SRGB qualified as Colour
+import Data.Text qualified as T
 import Data.These
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 import Graphics.Vty.Attributes qualified as I
 import Graphics.Vty.Image qualified as I
 import Graphics.Vty.Input.Events
-import Text.Pretty.Simple qualified as Pretty
 import Tourney.Algebra (Depth (..), Tournament, execSteps)
 import Tourney.Common
 import Tourney.Format.DoubleElimination
+import Tourney.Format.InsertionSort
+import Tourney.Format.OptimalSortingNetwork
 import Tourney.Format.RoundRobin
 import Tourney.Format.SingleElimination
 import Tourney.Match
@@ -46,13 +50,25 @@ knownTournaments =
   , ("Round Robin", execSteps id roundRobin)
   , ("Round Robin (2 groups)", execSteps id (groupRoundRobin 2))
   , ("Round Robin (4 groups)", execSteps id (groupRoundRobin 4))
+  , ("Optimal Sorting Network", execSteps id optimalSortingNetwork)
+  , ("Insertion Sort (Naiive)", execSteps id insertionSortNaiive)
+  , ("Insertion Sort", execSteps id insertionSort)
   ]
 
+knownTournamentsLen :: Int
+knownTournamentsLen = length knownTournaments
+
+data MenuForm = MenuForm
+  { tournament :: !Int
+  , playerCount :: !Text
+  }
+  deriving stock (Generic)
+
 data AppState = AppState
-  { tournamentIndex :: !Int
-  , playerCount :: !PlayerCount
-  , initialStandings :: !Standings
+  { menu :: Form MenuForm AppEvent AppResourceName
+  , dialog :: Dialog DialogChoice AppResourceName
   , state :: !(Maybe TournamentState)
+  , errors :: [Text]
   }
   deriving stock (Generic)
 
@@ -75,6 +91,28 @@ data TournamentState = TournamentState
   }
   deriving stock (Generic)
 
+data MatchForm = MatchForm
+  { score1 :: !Text
+  , score2 :: !Text
+  }
+  deriving stock (Generic)
+
+data AppResourceName
+  = Tournament
+  | CodeStream
+  | EventStream
+  | Panel
+  | ScrollBar ClickableScrollbarElement AppResourceName
+  | MenuTournamentItem !Int
+  | MenuPlayerCountItem
+  | MenuStandingsItem
+  | MenuEnter
+  | Score1
+  | Score2
+  deriving stock (Show, Eq, Ord)
+
+type UIElement = Reader TournamentState (Widget AppResourceName)
+
 data AppEvent deriving stock (Eq, Show, Ord)
 
 main :: IO AppState
@@ -82,25 +120,44 @@ main =
   defaultMain
     app
     AppState
-      { tournamentIndex = 0
-      , playerCount = 8
-      , initialStandings = createInitialStandings 8
+      { menu = menuForm MenuForm{playerCount = "8", tournament = 0}
+      , dialog = menuDialog
       , state = Nothing
+      , errors = []
       }
   where
     app :: App AppState AppEvent AppResourceName
     app =
       App
         { appDraw = \s ->
-            concat
-              [ [drawMenu `runReader` s | isNothing (s ^. #state)]
-              , [drawMain `runReader` ts | Just ts <- [s ^. #state]]
-              ]
+            let
+              errorsLayers = drawErrors (s ^. #errors)
+              menuLayer = [drawMenu `runReader` s | isNothing (s ^. #state)]
+              mainLayer = foldMap (runReader drawMain) (s ^. #state)
+            in
+              errorsLayers ++ menuLayer ++ mainLayer
         , appChooseCursor = \s c ->
-            case s ^? #state . _Just . #matchForm . _Just of
-              Just mf -> focusRingCursor formFocus mf c
-              Nothing -> showFirstCursor s c
-        , appHandleEvent = \ev -> Brick.zoom (#state . _Just) (handleEvent ev)
+            case s ^. #state of
+              Nothing -> focusRingCursor formFocus (s ^. #menu) c
+              Just st -> case st ^. #matchForm of
+                Just mf -> focusRingCursor formFocus mf c
+                Nothing -> showFirstCursor s c
+        , appHandleEvent = \ev -> do
+            case ev of
+              VtyEvent (EvKey (KChar 'q') _) -> halt
+              VtyEvent (EvKey (KChar 'c') [MCtrl]) -> halt
+              _ -> do
+                s <- use #state
+                case s of
+                  Nothing -> do
+                    case ev of
+                      VtyEvent vev -> Brick.zoom #dialog (handleDialogEvent vev)
+                      _ -> pure ()
+
+                    case ev of
+                      VtyEvent (EvKey KEnter _) -> beginTournament
+                      _ -> Brick.zoom #menu (handleFormEvent ev)
+                  Just _ -> Brick.zoom (#state . _Just) (handleTournamentEvent ev)
         , appStartEvent = do
             -- Enable mouse support
             vty <- getVtyHandle
@@ -110,27 +167,125 @@ main =
               I.defAttr
               [ (codeRealAttr, style I.bold)
               , (codePureAttr, fg dimRed)
+              , (winPlayerAttr, fg I.green `I.withStyle` I.bold)
+              , (lostPlayerAttr, fg I.red `I.withStyle` I.bold)
               , (helpAttr, I.defAttr)
               , (helpKeyAttr, fg I.red `I.withStyle` I.bold)
               , (stepCodeAttr, fg I.green `I.withStyle` I.bold)
+              , (editAttr, I.white `Brick.on` I.black)
+              , (editFocusedAttr, I.black `Brick.on` I.yellow)
+              , (invalidFormInputAttr, I.white `Brick.on` I.red)
+              , (focusedFormInputAttr, I.black `Brick.on` I.yellow)
+              , (dialogAttr, I.white `Brick.on` I.blue)
+              , (buttonAttr, I.black `Brick.on` I.white)
+              , (buttonSelectedAttr, bg I.yellow)
+              , (rowOddAttr, I.white `Brick.on` I.brightBlack)
+              , (rowEvenAttr, I.black `Brick.on` I.white)
               ]
         }
 
 --------------------------------------------------------------------------------
 -- Main menu
 
-drawMenu :: Reader AppState (Widget n)
+data DialogChoice = DialogEnter
+
+menuDialog :: Dialog DialogChoice AppResourceName
+menuDialog =
+  dialog
+    (Just (txt " journeyman ui "))
+    (Just (MenuEnter, [("Start", MenuEnter, DialogEnter)]))
+    35
+
+menuForm :: MenuForm -> Form MenuForm AppEvent AppResourceName
+menuForm =
+  newForm
+    [ (txt "Player count: " <+>)
+        @@= editTextField #playerCount MenuPlayerCountItem (Just 1)
+    , ((txt "Tournament type: " <=>) >>> padTop (Pad 1))
+        @@= radioField
+          #tournament
+          [ (i, MenuTournamentItem i, knownTournaments ^?! ix i . _1)
+          | i <- [0 .. knownTournamentsLen - 1]
+          ]
+    ]
+    >>> setFormConcat (vBox >>> padAll 1)
+
+drawMenu :: Reader AppState (Widget AppResourceName)
 drawMenu = do
-  pure emptyWidget
+  form <- view #menu
+  dial <- view #dialog
+  pure (renderDialog dial (renderForm form))
+
+beginTournament :: EventM AppResourceName AppState ()
+beginTournament = do
+  mcount <- uses (#menu . to formState . #playerCount) (readEither @PlayerCount . toString)
+  tournIx <- use (#menu . to formState . #tournament)
+  let tournament = knownTournaments ^?! ix tournIx . _2
+  case mcount of
+    Left err -> #errors %= (err :)
+    Right count -> do
+      #state <~ liftIO (Just <$> createTournamentState count tournament)
+
+--------------------------------------------------------------------------------
+-- Errors layer
+
+drawErrors :: [Text] -> [Widget AppResourceName]
+drawErrors errs =
+  [ txtWrap err & borderWithLabel (txt " error ") & withBorderStyle unicodeRounded
+  | err <- errs
+  ]
 
 --------------------------------------------------------------------------------
 
-createTournamentState :: Tournament TMany -> IO TournamentState
-createTournamentState t = do
-  let !playerCount = 8
+handleTournamentEvent :: BrickEvent AppResourceName AppEvent -> EventM AppResourceName TournamentState ()
+handleTournamentEvent ev = do
+  didHandleEvent <- newIORef True
+  case ev of
+    VtyEvent (EvKey key mods) -> case (key, mods) of
+      (KChar 'a', []) -> advanceRound
+      (KChar 'h', []) -> #tournamentViewportScroll . _1 += 2
+      (KChar 'j', []) -> #tournamentViewportScroll . _2 += 2
+      (KChar 'k', []) -> #tournamentViewportScroll . _2 -= 2
+      (KChar 'l', []) -> #tournamentViewportScroll . _1 -= 2
+      (KChar '1', []) -> quickAssignResult (Result 1 0)
+      (KChar '2', []) -> quickAssignResult (Result 0 1)
+      (KEnter, []) -> do
+        mf <- use #matchForm
+        case mf of
+          Nothing -> #matchForm <~ fmap (fmap matchForm) createMatchForm
+          Just _ -> acceptMatchFormEntry
+      (KLeft, []) -> #selection %= Sel.moveLeft
+      (KRight, []) -> #selection %= Sel.moveRight
+      (KEsc, []) -> #matchForm .= Nothing
+      _ -> writeIORef didHandleEvent False
+    MouseDown Tournament BScrollUp _ _ ->
+      hScrollBy (viewportScroll Tournament) (-6)
+    MouseDown Tournament BScrollDown _ _ ->
+      hScrollBy (viewportScroll Tournament) 6
+    MouseDown CodeStream BScrollUp _ _ ->
+      vScrollBy (viewportScroll CodeStream) (-6)
+    MouseDown CodeStream BScrollDown _ _ ->
+      vScrollBy (viewportScroll CodeStream) 6
+    MouseDown EventStream BScrollUp _ _ ->
+      vScrollBy (viewportScroll EventStream) (-6)
+    MouseDown EventStream BScrollDown _ _ ->
+      vScrollBy (viewportScroll EventStream) 6
+    MouseDown (ScrollBar el Tournament) BLeft _ _ ->
+      mapM_ (hScrollBy (viewportScroll Tournament)) case el of
+        SBHandleBefore -> Just (-6)
+        SBHandleAfter -> Just 6
+        SBTroughBefore -> Just (-12)
+        SBTroughAfter -> Just 12
+        _ -> Nothing
+    _ -> writeIORef didHandleEvent False
+  ok <- readIORef didHandleEvent
+  unless ok (Brick.zoom (#matchForm . _Just) (handleFormEvent ev))
+
+createTournamentState :: PlayerCount -> Tournament TMany -> IO TournamentState
+createTournamentState playerCount t = do
   vm <- VM.setup t playerCount
   pureCode <- VM.peekCode vm
-  let pureMatches = TS.pureMatchesByRound t playerCount
+  let !pureMatches = TS.pureMatchesByRound t playerCount
   pure
     TournamentState
       { tournament = t
@@ -150,43 +305,6 @@ createTournamentState t = do
       , matchForm = Nothing
       }
 
-handleEvent :: BrickEvent AppResourceName AppEvent -> EventM AppResourceName TournamentState ()
-handleEvent ev = do
-  let ch m = lift m >> put True
-  didHandleEvent <- executingStateT False $ case ev of
-    VtyEvent (EvKey key mods) -> case (key, mods) of
-      (KChar 'c', [MCtrl]) -> ch halt
-      (KChar 'q', []) -> ch halt
-      (KChar 'a', []) -> ch advanceRound
-      (KChar 'h', []) -> ch $ #tournamentViewportScroll . _1 -= 1
-      (KChar 'j', []) -> ch $ #tournamentViewportScroll . _2 += 1
-      (KChar 'k', []) -> ch $ #tournamentViewportScroll . _2 -= 1
-      (KChar 'l', []) -> ch $ #tournamentViewportScroll . _1 += 1
-      (KEnter, []) -> ch do
-        mf <- use #matchForm
-        case mf of
-          Nothing -> #matchForm <~ fmap (fmap matchForm) createMatchForm
-          Just _ -> acceptMatchFormEntry
-      (KLeft, []) -> ch $ #selection %= Sel.moveLeft
-      (KRight, []) -> ch $ #selection %= Sel.moveRight
-      _ -> pure ()
-    MouseDown _ BScrollUp _ _ ->
-      ch $
-        hScrollBy (viewportScroll Tournament) (-6)
-    MouseDown _ BScrollDown _ _ ->
-      ch $
-        hScrollBy (viewportScroll Tournament) 6
-    MouseDown (ScrollBar el Tournament) BLeft _ _ ->
-      ch $ mapM_ (hScrollBy (viewportScroll Tournament)) case el of
-        SBHandleBefore -> Just (-6)
-        SBHandleAfter -> Just 6
-        SBTroughBefore -> Just (-12)
-        SBTroughAfter -> Just 12
-        _ -> Nothing
-    _ -> pure ()
-
-  unless didHandleEvent (Brick.zoom (#matchForm . _Just) (handleFormEvent ev))
-
 advanceRound :: EventM AppResourceName TournamentState ()
 advanceRound = do
   vm <- use #vm
@@ -199,6 +317,19 @@ advanceRound = do
   #roundNo <~ liftIO (VM.getRoundNo vm)
   matches <- #matches <<~ liftIO (VM.getMatches vm)
   #selection %= Sel.merge matches
+  #selection %= Sel.moveRight
+
+quickAssignResult :: Result -> EventM AppResourceName TournamentState ()
+quickAssignResult result = void $ runMaybeT do
+  vm <- use #vm
+  (curRd, curMatch) <- hoistMaybe =<< uses #selection Sel.current
+  Just Nothing <- liftIO (VM.getMatch vm curRd curMatch)
+  ok <- liftIO (VM.setMatchResult vm curRd curMatch result)
+  when ok do
+    #matchForm .= Nothing
+    #matches <~ liftIO (VM.getMatches vm)
+    #selection %= Sel.moveRight
+    pure ()
 
 acceptMatchFormEntry :: EventM AppResourceName TournamentState ()
 acceptMatchFormEntry = void $ runMaybeT do
@@ -213,8 +344,10 @@ acceptMatchFormEntry = void $ runMaybeT do
     #matchForm .= Nothing
     #matches <~ liftIO (VM.getMatches vm)
     #selection %= Sel.moveRight
-  where
-    parsePoints = hoistMaybe . (readMaybe . toString :: Text -> Maybe Points)
+    pure () -- not necessary, but my syntax highlighting breaks without it
+
+parsePoints :: Text -> MaybeT (EventM AppResourceName s) Points
+parsePoints = hoistMaybe . (readMaybe . toString :: Text -> Maybe Points)
 
 createMatchForm :: EventM AppResourceName TournamentState (Maybe MatchForm)
 createMatchForm = runMaybeT do
@@ -227,17 +360,6 @@ createMatchForm = runMaybeT do
 --------------------------------------------------------------------------------
 -- UI types
 
-data AppResourceName
-  = Tournament
-  | CodeStream
-  | Panel
-  | ScrollBar ClickableScrollbarElement AppResourceName
-  | Score1
-  | Score2
-  deriving stock (Show, Eq, Ord)
-
-type UIElement = Reader TournamentState (Widget AppResourceName)
-
 drawMain :: Reader TournamentState [Widget AppResourceName]
 drawMain = do
   tournament <- drawTournament
@@ -246,19 +368,23 @@ drawMain = do
   help <- drawHelp
   match <- drawSelectedMatch
   events <- drawEvents
-  let main =
-        hBox
-          [ vBox [tournament, pendings]
-          , vBorder
-          , vBox
-              [ code
-              , hBorder
-              , events
-              , hBorder
-              , help
+  pure
+    ( maybeToList match
+        ++ [ hBox
+              [ vBox [tournament, pendings]
+              , vBorder
+              , vBox
+                  [ hBorderWithLabel (txt " Compiled Tournament ")
+                  , code
+                  , hBorderWithLabel (txt " Events ")
+                  , events
+                  , hBorder
+                  , help
+                  ]
+                  & hLimit 40
               ]
-          ]
-  pure (maybeToList match ++ [main])
+           ]
+    )
 
 niceBorder :: Widget a -> Widget a
 niceBorder = joinBorders . withBorderStyle unicodeRounded . border
@@ -268,12 +394,12 @@ drawCode = do
   code <- view #codeSoFar
   pureCode <- view #pureCode
   renderedCode <- V.sequence (alignWith (pure . drawCodeLine) code pureCode)
-  pure $!
-    vBox (toList renderedCode)
-      & padLeftRight 1
-      & viewport CodeStream Vertical
-      & withVScrollBars OnRight
-      & hLimit 60
+  pure
+    ( vBox (toList renderedCode)
+        & padLeftRight 1
+        & viewport CodeStream Vertical
+        & withVScrollBars OnRight
+    )
   where
     drawRan code ev =
       hBox
@@ -290,26 +416,42 @@ drawEvents :: UIElement
 drawEvents = do
   events <- view #rawEvents
   let !len = V.length events
-  let !lastEvents = V.drop (max 0 (len - 20)) events
-  pure $ vBox [txt (show ev) | ev <- toList lastEvents]
+  --  let !lastEvents = V.drop (max 0 (len - 15)) events
+  pure $
+    vBox
+      [ case ev of
+        VM.Stepped e ->
+          (if isOdd then rowOddAttr else rowEvenAttr)
+            `withAttr` txtWrap (show e)
+        _ -> txt "Finished"
+      | (isOdd, ev) <- zip (cycle [False, True]) (toList events)
+      ]
+      & viewport EventStream Vertical
+      & withVScrollBars OnRight
 
 drawPendings :: UIElement
 drawPendings = do
   matches <- view #pendingMatches
   matrix <- view #matches
   roundNo <- view #roundNo
-  let drawPendingMatch m =
-        let result = join (matrix ^. at roundNo . non' _Empty . at m)
-        in  case result of
-              Just r -> txt (show m) <+> txt " := " <+> txt (show r)
-              Nothing -> txt (show m)
-  pure $ hBorderWithLabel (txt " Matches ") <=> vBox (map drawPendingMatch (toList matches))
-
-data MatchForm = MatchForm
-  { score1 :: !Text
-  , score2 :: !Text
-  }
-  deriving stock (Generic)
+  let drawPendingMatch m@(Match a b) =
+        let
+          result = join (matrix ^. at roundNo . non' _Empty . at m)
+          highlight (<>?) = case result of
+            Just (Result ra rb)
+              | ra <>? rb -> withAttr winPlayerAttr
+              | otherwise -> withAttr lostPlayerAttr
+            _ -> id
+        in
+          hBox [txt (show a) & highlight (>), txt " vs ", txt (show b) & highlight (<)]
+            & padLeftRight 1
+      forceLen2 [] = [emptyWidget, emptyWidget]
+      forceLen2 [a] = [a, emptyWidget]
+      forceLen2 [a, b] = [a, b]
+      forceLen2 _ = []
+      pendings = map drawPendingMatch (toList matches) & chunksOf 2 & map forceLen2 & transpose
+      pendingTable = table pendings & surroundingBorder False
+  pure $ hBorderWithLabel (txt " Pending Matches ") <=> (renderTable pendingTable & hCenter & padTopBottom 1)
 
 drawSelectedMatch :: Reader TournamentState (Maybe (Widget AppResourceName))
 drawSelectedMatch = runMaybeT do
@@ -324,37 +466,46 @@ drawSelectedMatch = runMaybeT do
         & centerLayer
     )
 
-score1Field, score2Field :: MatchForm -> FormFieldState MatchForm AppEvent AppResourceName
-score1Field = editTextField #score1 Score1 (Just 1) >>> setFieldConcat \ws -> hBox (txt "Score 1: " : ws)
-score2Field = editTextField #score2 Score2 (Just 1) >>> setFieldConcat \ws -> hBox (txt "Score 2: " : ws)
-
 matchForm :: MatchForm -> Form MatchForm AppEvent AppResourceName
 matchForm =
-  newForm [score1Field, score2Field]
+  newForm
+    [ editTextField #score1 Score1 (Just 1) >>> setFieldConcat \ws -> hBox (txt "Score 1: " : ws)
+    , editTextField #score2 Score2 (Just 1) >>> setFieldConcat \ws -> hBox (txt "Score 2: " : ws)
+    ]
     >>> setFormConcat (vBox >>> vLimit 2 >>> padLeftRight 1)
 
--- borderWithLabel (txt [fmt| round - {rd} |]) (txt "asdf")
-
 drawHelp :: UIElement
-drawHelp =
+drawHelp = do
+  sel <- views #selection Sel.current
   pure $
     vBox
-      [ helpText "" "a" "dvance tournament"
-      , helpText "" "<Enter>" " match"
-      , helpText "" "<Left>" " select left"
-      , helpText "" "<Right>" " select right"
-      , helpText "" "hjkl" " scroll viewport"
-      , helpText "" "q" "uit"
+      [ helpText "a|dvance tournament"
+      , case sel of
+          Just (_, Match a _) -> helpText [fmt||1|: set {a:s} as winner|]
+          Nothing -> helpText "set |1| as winner"
+      , case sel of
+          Just (_, Match _ b) -> helpText [fmt||2|: set {b:s} as winner|]
+          Nothing -> helpText "set |2| as winner"
+      , helpText "<Enter>| set match result manually"
+      , helpText "<Left>| select left"
+      , helpText "<Right>| select right"
+      , helpText "hjkl| scroll viewport"
+      , helpText "q|uit"
       ]
       & padLeftRight 1
+
+helpText :: Text -> Widget n
+helpText (T.split (== '|') -> ts) = case ts of
+  [a, k, b] -> hBox (map applyHelpAttr [Left a, Right k, Left b])
+  [a, b] -> hBox (map applyHelpAttr [Right a, Left b])
+  [a] -> applyHelpAttr (Right a)
+  _ -> emptyWidget
   where
-    helpText a k b = hBox (map applyHelpAttr [Left a, Right k, Left b])
     applyHelpAttr (Left a) = txt a & withAttr helpAttr
     applyHelpAttr (Right a) = txt a & withAttr helpKeyAttr
 
 drawTournament :: UIElement
 drawTournament = do
-  count <- view #playerCount
   roundsPure <- view #pureMatches
   rounds <- view #matches
   let displayRounds = alignWith alignRound (itoList roundsPure) (itoList rounds)
@@ -363,17 +514,19 @@ drawTournament = do
   history <- view #standingsHistory
   roundsRendered <- forM displayRounds \(isReal, (roundNo, matches)) ->
     let prevRound = history ^. ix (roundNo - 1) . #standings
-        selMatch = fmap snd sel
-    in  drawRound selMatch isReal matches prevRound
+        selMatch = do
+          (r, m) <- sel
+          guard (r == roundNo)
+          pure m
+    in  drawRound roundNo selMatch isReal matches prevRound
   let
     standingsBefore = history ^. traverseMin . #standings
     standingsAfter = history ^. traverseMax . #standings
-    displayStandings = I.vertCat . map (I.string I.defAttr . show . snd) . toList
+    displayStandings = I.vertCat . (I.string I.defAttr " " :) . map (I.string I.defAttr . show . snd) . toList
     before = displayStandings standingsBefore
     after = displayStandings standingsAfter
   pure $
-    (before I.<|> I.horizCat roundsRendered I.<|> after)
-      & raw
+    raw (before I.<|> I.horizCat roundsRendered I.<|> after)
       & center
       & translateBy (Location (x, y))
   where
@@ -382,7 +535,7 @@ drawTournament = do
       This p -> (False, p)
       That r -> (True, r)
 
-    drawRound selectedMatch isReal matches standings = do
+    drawRound (RoundNo roundNo) selectedMatch isReal matches standings = do
       colours <- view #colours
       pc <- view #playerCount
       let
@@ -430,17 +583,30 @@ drawTournament = do
               , horizLines
               , vertLine True
               ]
-      pure img
+      pure (I.string (I.defAttr `I.withForeColor` bga) ('R' : show roundNo) I.<-> img)
 
 --------------------------------------------------------------------------------
 -- Terminal attributes
 
-codeRealAttr, codePureAttr, helpAttr, helpKeyAttr, stepCodeAttr :: AttrName
+codeRealAttr
+  , codePureAttr
+  , helpAttr
+  , helpKeyAttr
+  , stepCodeAttr
+  , lostPlayerAttr
+  , winPlayerAttr
+  , rowOddAttr
+  , rowEvenAttr
+    :: AttrName
 codeRealAttr = attrName "code_real"
 codePureAttr = attrName "code_pure"
 stepCodeAttr = attrName "step_code"
 helpAttr = attrName "help"
 helpKeyAttr = attrName "help_key"
+lostPlayerAttr = attrName "lost"
+winPlayerAttr = attrName "win"
+rowOddAttr = attrName "oddrow"
+rowEvenAttr = attrName "evenrow"
 
 dim, dimRed :: I.Color
 dim = I.linearColor @Word8 100 100 100
@@ -469,15 +635,65 @@ getMatchAttr pc colours (slow, low) (shigh, high) actual =
     `I.withForeColor` toVtyRGB textColour
     `I.withStyle` I.bold
   where
-    textColour, midColour, lowColour, highColour :: Colour.Colour Double
+    textColour, midColour :: Colour.Colour Double
     !textColour
       | isBye = Colour.grey
       | Colour.luminance midColour > 0.3 = Colour.black
       | otherwise = Colour.white
     !midColour =
-      Colour.blend (sqrt dist) lowColour highColour
+      ( case (lowColour, highColour) of
+          (Just l, Just h) -> Colour.blend (sqrt dist) l h
+          _ -> fromMaybe Colour.white (lowColour <|> highColour)
+      )
         & Colour.darken (if isBye then 0.01 else 1.0)
-    !lowColour = colours ^?! ix (Player (maybe (asInt slow) asInt low))
-    !highColour = colours ^?! ix (Player (maybe (asInt shigh) asInt high))
+
+    lowColour, highColour :: Maybe (Colour.Colour Double)
+    !lowColour = colours ^? ix (Player (maybe (asInt slow) asInt low))
+    !highColour = colours ^? ix (Player (maybe (asInt shigh) asInt high))
     !dist = fromIntegral (shigh - actual) / fromIntegral (shigh - slow)
     !isBye = slow < 0 || slow > Slot pc
+
+--------------------------------------------------------------------------------
+-- Internals
+
+-- |
+--
+-- chunksOf function taken from the "split" package by Brent Yorgey 2008-2023
+-- licensed BSD-3
+--
+-- Copyright (c) 2008 Brent Yorgey, Louis Wasserman
+--
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions
+-- are met:
+-- 1. Redistributions of source code must retain the above copyright
+--    notice, this list of conditions and the following disclaimer.
+-- 2. Redistributions in binary form must reproduce the above copyright
+--    notice, this list of conditions and the following disclaimer in the
+--    documentation and/or other materials provided with the distribution.
+-- 3. Neither the name of the author nor the names of other contributors
+--    may be used to endorse or promote products derived from this software
+--    without specific prior written permission.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND
+-- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+-- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+-- ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE
+-- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+-- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+-- OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+-- HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+-- LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+-- OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+-- SUCH DAMAGE.
+chunksOf :: Int -> [e] -> [[e]]
+chunksOf i ls = map (take i) (build (splitter ls))
+  where
+    splitter :: [e] -> ([e] -> a -> a) -> a -> a
+    splitter [] _ n = n
+    splitter l c n = l `c` splitter (drop i l) c n
+
+    build :: ((a -> [a] -> [a]) -> [a] -> [a]) -> [a]
+    build g = g (:) []

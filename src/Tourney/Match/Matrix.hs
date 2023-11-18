@@ -27,9 +27,6 @@ import Data.Vector qualified as V
 import Tourney.Common
 import Tourney.Match
 
-import Control.Concurrent
-import System.IO.Unsafe
-
 -- | An abstraction around a mutable store of rounds of matches and their
 -- results. Conceptually it stores a matrix of matches by (round, player1,
 -- player2), and a variable for the current round.
@@ -114,20 +111,18 @@ addMatch :: MatchMatrix -> RoundNo -> Match -> STM ()
 addMatch m roundNo match = do
   roundRef <- getRound m roundNo
   roundM <- readTVar roundRef
-  if isNothing (roundM ^. #matches . at match)
-    then modifyTVar' roundRef $ execState do
+  when (isNothing (roundM ^. #matches . at match)) do
+    modifyTVar' roundRef $ execState do
       #matches . at match ?= Nothing
       #pending += 1
       #total += 1
-    else do
-      traceM [fmt|WARNING: addMatch added {match:s} twice|]
 
 -- | Get a match
-getMatch :: MatchMatrix -> RoundNo -> Match -> STM (Maybe Result)
+getMatch :: MatchMatrix -> RoundNo -> Match -> STM (Maybe (Maybe Result))
 getMatch m roundNo match = do
   roundRef <- getRound m roundNo
   roundM <- readTVar roundRef
-  pure (roundM ^? #matches . at match . _Just . _Just)
+  pure (roundM ^. #matches . at match)
 
 -- | Set a match result. It must already exist in the current round, by
 -- 'addMatch'
@@ -136,13 +131,11 @@ setMatchResult m roundNo match result = do
   roundRef <- getRound m roundNo
   roundM <- readTVar roundRef
   let haveMatch = isJust (roundM ^. #matches . at match)
-  if haveMatch
-    then modifyTVar' roundRef $ execState do
+  when haveMatch do
+    modifyTVar' roundRef $ execState do
       #complete += 1
       #pending -= 1
       #matches . at match . non' _Empty ?= result
-    else do
-      traceM [fmt|WARNING: setMatchResult failed due to {match:s} not existing|]
 
 --------------------------------------------------------------------------------
 -- Internals

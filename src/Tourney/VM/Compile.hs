@@ -150,28 +150,16 @@ compile1_ :: Monad m => Tournament TOne -> Compiler m ()
 compile1_ = \case
   Empty -> pure ()
   One m -> emit (MATCH m)
-  Modify m t -> case m of
-    SetFocus getFocii -> do
-      focus <- view #focus
-      forM_ (getFocii focus) \f -> do
-        local (#focus .~ f) (compile1_ t)
-    SetOffset offs -> do
-      focus0 <- view #focus
-      let focus1 = focus0 & #focusStart +~ Slot offs
-      local (#focus .~ focus1) (compile1_ t)
-    SetSortMethod method -> do
-      focus <- view #focus
-      local (#sort .~ method) (compile1_ t)
-      emit (PERFORM_SORTING focus method)
+  Sort method t -> do
+    focus <- view #focus
+    local (#sort .~ method) (compile1_ t)
+    emit (PERFORM_SORTING focus method)
   Overlay a b -> do
     compile1_ a
     compile1_ b
   ByPlayerCount byCount -> do
     f <- view #focus
     compile1_ (byCount (f ^. #focusLength))
-  ByFocus byFocus -> do
-    f <- view #focus
-    compile1_ (byFocus f)
   ByStandings byStandings -> do
     focus <- view #focus
     getter <- view (#streamEnv . #getStandings)

@@ -35,8 +35,8 @@ addLosersBracket :: Steps () () -> Steps () ()
 addLosersBracket original = do
   Right (ub1 :< ubs) <- inspect (ByRound Flat) original
   let lowerRound1 = foldAroundMidpoint (ub1 ^.. each . likelyLoser)
-  round_ ub1
-  round_ lowerRound1
+  swaps (round_ ub1)
+  swaps (round_ lowerRound1)
   evaluatingStateT (lowerRound1 ^.. each . likelyWinner) do
     (i, upper) <- lift (list (V.indexed ubs))
     lastWinners <- get
@@ -49,9 +49,9 @@ addLosersBracket original = do
     -- Finally, add these rounds, and store the winning players in losersRound
     -- for the next iteration
     round_ do
-      toRound upper
-      toRound acceptRound
-    round_ losersRound
+      swaps (toRound upper)
+      swaps (toRound acceptRound)
+    round_ (swaps (toRound losersRound))
     put (losersRound ^.. each . likelyWinner)
 
 linkFun :: Int -> [a] -> [a]

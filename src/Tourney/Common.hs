@@ -104,9 +104,9 @@ infix 5 ..>
 
 -- | Round number
 newtype RoundNo = RoundNo Int
-  deriving stock (Show)
   deriving newtype (Eq, Ord, Enum, Bounded, Num, Integral, Real, Ix, Bits)
 
+instance Show RoundNo where show (RoundNo s) = 'R' : Text.Show.show s
 newtype instance U.Vector RoundNo = UV_RoundNo (U.Vector Int)
 newtype instance MU.MVector s RoundNo = MUV_RoundNo (MU.MVector s Int)
 deriving newtype instance VGM.MVector U.MVector RoundNo

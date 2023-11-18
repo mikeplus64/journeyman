@@ -33,6 +33,8 @@ module Data.Dependency (
   for,
   for_,
   fold,
+  foldM,
+  ifoldM,
   hoist,
   hoistT,
   alignWith,
@@ -57,7 +59,6 @@ import Control.Monad (ap, liftM2)
 import Control.Monad.Trans qualified as TM
 import Data.Foldable qualified as Foldable
 import Data.These
-import Data.Vector (Vector)
 import VectorBuilder.Builder qualified as VB
 import VectorBuilder.Vector qualified as VB
 import Prelude hiding (fold, foldMap, foldMapM, for_, group, lift, map, null, toList)
@@ -192,15 +193,24 @@ for s0 f = go (pop s0)
 
 {-# INLINE fold #-}
 
--- | Fold over the elements of the stream, running effects as needed
+-- | Strictly fold over the elements of the stream, running effects as needed
 fold :: Monad m => (a -> r -> r) -> r -> StreamM m a x -> m r
-fold f z = go
+fold f = ifoldM (\_ x xs -> pure (f x xs))
+
+-- | Strictly fold over the elements of the stream, running effects as needed
+foldM :: Monad m => (a -> r -> m r) -> r -> StreamM m a x -> m r
+foldM f = ifoldM (const f)
+
+-- | Strictly fold over the elements of the stream, running effects as needed
+ifoldM :: Monad m => (Int -> a -> r -> m r) -> r -> StreamM m a x -> m r
+ifoldM f = go 0
   where
-    go s = do
-      next <- forcePop (pop s)
-      case next of
-        Just (a, s') -> f a <$> go s'
-        Nothing -> pure z
+    go !i !acc s =
+      forcePop (pop s) >>= \case
+        Just (a, s') -> do
+          !acc' <- f i a acc
+          go (i + 1) acc' s'
+        Nothing -> pure acc
 
 -- | Run a stream and its effects, collecting the results into a vector
 toVector :: Monad m => StreamM m a x -> m (Vector a)
