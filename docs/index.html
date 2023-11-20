@@ -2,7 +2,11 @@
 create an easy-to-use eDSL that can be used to create and analyse arbitrary
 tournament structures; such as &quot;common&quot; ones like Single or Double
 Elimination, or compositions like N groups of Single Elimination.</p><ul><li>Your entrypoint to the eDSL should be the <a href="Tourney-Algebra.html">Tourney.Algebra</a> module.</li><li>Your entrypoint to exploring what's possible with Journeyman should be
-the journeyman-ui executable that comes bundled with this package.</li><li>To create a special-purpose tournament VM, for instance, to simulate
+the journeyman-ui executable that comes bundled with this package. It
+uses an extensible tournament UI defined in <a href="Tourney-UI-Main.html">Tourney.UI.Main</a>, but all
+you as a user needs to do is extend the list of known tournaments you
+pass to <code>createTourneyUI</code> with a tournament you create.
+For an example of how to do this, see the executable in <code> app/Main.hs </code>.</li><li>To create a special-purpose tournament VM, for instance, to simulate
 a tournament structure under different conditions, see the <a href="Tourney-VM.html">Tourney.VM</a>
 module.</li><li>Functions dealing merely with sorting networks or point-award based
 sorting networks such as those supported by Journeyman can be found in

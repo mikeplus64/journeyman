@@ -4,7 +4,12 @@
 
 {-# HLINT ignore "Avoid lambda" #-}
 
-module Tourney.UI.Main (createTourneyUI, defaultTournaments) where
+-- | Use this module to create your own UI that lets you explore tournament
+-- structures defined by the Journeyman eDSL.
+module Tourney.UI.Main (
+  createTourneyUI,
+  defaultTournaments,
+) where
 
 import Brick hiding (Max, Result, zoom)
 import Brick qualified
@@ -115,6 +120,7 @@ type UIElement = Reader TournamentState (Widget AppResourceName)
 
 data AppEvent deriving stock (Eq, Show, Ord)
 
+-- | Given a list of known tournaments, create a tournament UI.
 createTourneyUI :: [(Text, Tournament TMany)] -> IO AppState
 createTourneyUI knownTournaments =
   defaultMain
