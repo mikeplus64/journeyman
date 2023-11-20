@@ -1,7 +1,12 @@
 -- | Reified functions; functions that are "well-known", and can be tested for
--- equality
+-- equality, and have properties such as surjectivity, injectivity, and
+-- bijectivity, that can be inspected.
 --
--- This enables functional equality
+-- This enables equality between functions.
+--
+-- Ultimately, while this experiment was quiet informative, it is not used in
+-- any core Journeyman code; it is generally enough to just have pure functions
+-- within the @ Tournament @ type.
 module Data.Function.Known where
 
 import BasePrelude (Show (showsPrec))

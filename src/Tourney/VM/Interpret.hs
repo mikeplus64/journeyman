@@ -21,8 +21,6 @@ import Tourney.Match.Matrix
 import Tourney.SortingNetwork
 import Tourney.VM.Code
 
-import GHC.Conc
-
 -- | Interpreter state
 newtype IStateVar = IStateVar
   { var :: TVar IState

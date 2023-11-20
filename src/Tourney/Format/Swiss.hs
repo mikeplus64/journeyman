@@ -20,6 +20,7 @@
 -- be some exceptions to avoid color repetition.
 module Tourney.Format.Swiss where
 
+{-
 import Tourney.Algebra
 import Tourney.Format.SingleElimination
 
@@ -29,3 +30,8 @@ simpleSwiss numRounds = do
   count <- getPlayerCount
   let depth = bitLog2 (nearestPow2Above count)
   swaps (round_ (foldAroundMidpoint (0 ..< 2 ^ depth)))
+
+-- TODO
+
+-- Now the winners and losers are split into the two halves of the tournament, make
+-}

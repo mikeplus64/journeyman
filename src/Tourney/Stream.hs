@@ -11,6 +11,21 @@
 -- At the same time, I try to validate that the tournament is valid namely that
 -- no focus is set that is not within the outer/current focus, and that no match
 -- uses slots that are not in the current focus.
+--
+-- = How this works
+--
+-- The core operation that enables the transformation of arbitrarily nested and
+-- unbalanced combinations of 'Overlay' and 'Sequence' is /alignment/.
+-- Effectively, every occurence of 'Overlay' triggers an alignment operation
+-- such that both sides are balanced.
+--
+-- These diagrams may help elucidate how this is possible:
+--
+-- <https://mikeplus64.github.io/journeyman/ub1.png>
+--
+-- <https://mikeplus64.github.io/journeyman/ub2.png>
+--
+-- <https://mikeplus64.github.io/journeyman/ub3.png>
 module Tourney.Stream (
   -- * Compilation
 
@@ -161,8 +176,9 @@ createMatchStream t0 = MatchStream \StreamEnv{getStandings, focus = focus0} ->
     go = \case
       One m -> do
         Sorter focus _ <- ask
-        pure . S.yield $!
-          if validateMatch focus m
+        pure
+          . S.yield
+          $! if validateMatch focus m
             then Right m
             else err InvalidMatch{focus, match = m}
       Empty -> pure mempty
@@ -254,48 +270,52 @@ runInspection Inspection{standingsFn = getStandings, playerCount = count, query}
   case query of
     Flat ->
       runExceptT $
-        VB.build <$> executingStateT mempty do
-          S.for_ (hoist2 roundStream) \rs -> do
-            S.for_ (hoist2 (unMatchStream rs compiler0)) \case
-              Left e -> throwError e
-              Right (_, matchGroup) -> S.for_ (hoist2 matchGroup) \case
+        VB.build
+          <$> executingStateT mempty do
+            S.for_ (hoist2 roundStream) \rs -> do
+              S.for_ (hoist2 (unMatchStream rs compiler0)) \case
                 Left e -> throwError e
-                Right match -> modify' (<> VB.singleton match)
+                Right (_, matchGroup) -> S.for_ (hoist2 matchGroup) \case
+                  Left e -> throwError e
+                  Right match -> modify' (<> VB.singleton match)
     -- or...
     BySorter ->
       runExceptT $
-        VB.build <$> executingStateT mempty do
-          S.for_ (hoist2 roundStream) \rs -> do
-            S.for_ (hoist2 (unMatchStream rs compiler0)) \case
-              Left e -> throwError e
-              Right (sorter, matchGroup) -> do
-                matchesMaybe <- V.sequence <$> lift (lift (S.toVector matchGroup))
-                matches <- liftEither matchesMaybe
-                modify' (<> VB.singleton (sorter, matches))
+        VB.build
+          <$> executingStateT mempty do
+            S.for_ (hoist2 roundStream) \rs -> do
+              S.for_ (hoist2 (unMatchStream rs compiler0)) \case
+                Left e -> throwError e
+                Right (sorter, matchGroup) -> do
+                  matchesMaybe <- V.sequence <$> lift (lift (S.toVector matchGroup))
+                  matches <- liftEither matchesMaybe
+                  modify' (<> VB.singleton (sorter, matches))
     ByRound Flat ->
       runExceptT $
-        VB.build <$> executingStateT mempty do
-          S.for_ (hoist2 roundStream) \rs -> do
-            S.for_ (hoist2 (unMatchStream rs compiler0)) \case
-              Left e -> throwError e
-              Right (_sorter, matchGroup) -> do
-                matchesRaw <- lift (lift (S.toVector matchGroup))
-                let matchesMaybe = V.sequence matchesRaw
-                matches <- liftEither matchesMaybe
-                modify' (<> VB.singleton matches)
+        VB.build
+          <$> executingStateT mempty do
+            S.for_ (hoist2 roundStream) \rs -> do
+              S.for_ (hoist2 (unMatchStream rs compiler0)) \case
+                Left e -> throwError e
+                Right (_sorter, matchGroup) -> do
+                  matchesRaw <- lift (lift (S.toVector matchGroup))
+                  let matchesMaybe = V.sequence matchesRaw
+                  matches <- liftEither matchesMaybe
+                  modify' (<> VB.singleton matches)
     ByRound BySorter ->
       runExceptT $
-        VB.build <$> executingStateT mempty do
-          S.for_ (hoist2 roundStream) \rs -> do
-            here <-
-              VB.build <$> executingStateT mempty do
-                S.for_ (S.hoistT (hoist2 (unMatchStream rs compiler0))) \case
-                  Left e -> throwError e
-                  Right (sorter, matchGroup) -> do
-                    matchesMaybe <- V.sequence <$> lift (lift (lift (S.toVector matchGroup)))
-                    matches <- liftEither matchesMaybe
-                    modify' (<> VB.singleton (sorter, matches))
-            modify' (<> VB.singleton here)
+        VB.build
+          <$> executingStateT mempty do
+            S.for_ (hoist2 roundStream) \rs -> do
+              here <-
+                VB.build <$> executingStateT mempty do
+                  S.for_ (S.hoistT (hoist2 (unMatchStream rs compiler0))) \case
+                    Left e -> throwError e
+                    Right (sorter, matchGroup) -> do
+                      matchesMaybe <- V.sequence <$> lift (lift (lift (S.toVector matchGroup)))
+                      matches <- liftEither matchesMaybe
+                      modify' (<> VB.singleton (sorter, matches))
+              modify' (<> VB.singleton here)
   where
     compiler0 = StreamEnv{getStandings, focus = Focus 0 count}
     roundStream = tourneyStream (createTourney compiler0 t)

@@ -1,6 +1,5 @@
 module Tourney.VM.Code where
 
-import Data.Vector (Vector)
 import Tourney.Algebra.Unified
 import Tourney.Match
 import VectorBuilder.Builder qualified as VB

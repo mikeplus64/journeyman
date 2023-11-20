@@ -1,224 +1,331 @@
-# -*- org-latex-pdf-process: ("tectonic -Z shell-escape --outdir=%o %f "); org-latex-src-block-backend: minted; org-latex-minted-options: (("frame" "") ("fontsize" "\\normalsize") ("linenos" "")); -*-
-#+title: An Algebraic Functional Domain-Specific Language for Tournament Structures
-#+subtitle: Algebraic Graph Construction of Sorting-Network-like Structures
-#+author: Mike Ledger, supervised by Ranald Clouston, at Australian National University
+# -*- org-latex-pdf-process: ("tectonic -Z shell-escape --outdir=%o %f "); org-latex-default-packages-alist: nil; org-latex-listings: listings; -*-
+
+#+title: An Embedded Domain-Specific Language for Algebraic Tournament Structures
+#+subtitle: Construction and Evaluation of Sorting Structures in Haskell
+#+author: Michael Ledger, Australian National University
 #+keywords: tournaments,edsl,haskell,fp,graphs,sorting,interactive,tui
 #+email: u5582972@anu.edu.au
 #+date: November 20 2023
-#+options: num:t
-#+options: toc:nil
-#+bibliography: draft.bib
-#+cite_export: csl ieee.csl
-#+latex_class: article
-#+latex_class_options: [a4,11pt,twoside,final]
-#+latex_header: \usepackage{geometry}
-#+latex_header: \newgeometry{bottom=2in,top=2in,inner=1in,outer=1in}
-#+latex_header: \usepackage{merriweather}
-#+latex_header: \usepackage{hyperref}
-#+latex_header: \usepackage{minted}
-#+latex_header: \usepackage{multicol}
-#+latex_header: \newcommand{\point}[1]{\noindent \textbf{#1}}
-
-#+latex_header: \usepackage{mathtools} % DeclarePairedDelimiter
-#+latex_header: \DeclarePairedDelimiter\ceil{\lceil}{\rceil}
-#+latex_header: \DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
-
+#+setupfile: ./setup.org
 
 #+latex: \begin{abstract}
 An Embedded Domain-Specific Language (commonly known as eDSL) is developed for
-relatively easy expression and analysis of arbitrary tournament structures. The
-core tournament structure type inspired by work on algebraic graph
-representations in Haskell, and sorting networks, enabling composition in terms
-of either interleaving or sequencing. The core design balances between allowing
-arbitrary logic within a tournament structure and what static analysis can be
-achieved given such a structure. Metrics such as length, fairness, resource use,
-and reliability, are analysed on a variety of tournament structures. Similarity
-between sorting algorithms - in particular sorting networks - is observed and
-common tournament structures are contrasted with sorting networks to see how
-viable they can be as tournament structures. A tool is also developed to perform
-and visualise tournaments described within the eDSL.
+easy expression and analysis of arbitrary tournament structures. The core
+tournament structure type is inspired by work on algebraic graph representations
+in Haskell, and sorting networks, and enables composition in terms of either
+interleaving or sequencing. The core design balances between allowing arbitrary
+logic within a tournament structure and what static analysis can be achieved
+given such a structure. A software library is developed that, upon future work,
+can be capable of measuring characteristics such as length, fairness, resource
+use, and reliability, on arbitrary tournament structures. Analogies from
+tournaments to sorting networks are observed and common tournament structures
+are contrasted with sorting networks to see how viable they can be as tournament
+structures. A tool is also developed to perform and visualise tournaments
+described within the eDSL.
 #+latex: \end{abstract}
 #+latex: \newpage
 
 #+latex: \newgeometry{margin=2cm}
-#+latex: \begin{multicols}{2}
 #+toc: headlines 2
-#+latex: \end{multicols}
-
 #+latex: \newpage
 #+latex: \newgeometry{top=2.5cm,bottom=2.5cm,left=4cm,right=2.5cm}
+
+#+begin_export latex
+\definecolor{commentgreen}{RGB}{2,112,10}
+\definecolor{eminence}{RGB}{108,48,130}
+\definecolor{weborange}{RGB}{255,165,0}
+\definecolor{frenchplum}{RGB}{129,20,83}
+
+\lstset {
+    language=haskell,
+    frame=nil,
+    tabsize=4,
+    showstringspaces=false,
+    numbers=left,
+    %upquote=true,
+    commentstyle=\color{commentgreen},
+    keywordstyle=\color{eminence},
+    stringstyle=\color{red},
+    basicstyle=\large\ttfamily, % basic font setting
+    emph={int,char,double,float,unsigned,void,bool},
+    emphstyle={\color{blue}},
+    escapechar=\&,
+    % keyword highlighting
+    classoffset=1, % starting new class
+    otherkeywords={>,<,.,;,-,!,=,~,->,=>,::},
+    morekeywords={>,<,.,;,-,!,=,~},
+    keywordstyle=\color{weborange},
+    classoffset=0,
+}
+#+end_export
 
 * Introduction
 
 Tournament structures are used to determine a ranking of players in a game, such
 as a real-life sport or an eSport. Many different tournament structures are
-employed in real games, for a variety of reasons; for instance length, fairness,
-resources available, are all determining factors. The choice of what tournament
+employed in real games, for a variety of reasons; for example, what resources
+are available, or how many participants there are, or how much time is
+available. Moreover, the choice of tournament structure can have a significant
+effect on the outcomes of the tournament. The choice of what tournament
 structure is most appropriate for a given set of circumstance is mostly an open
-one, and many tournaments are ran as a composition of other tournament types.
+one, and tournaments are ran as a combination of other tournament types.
 
-There is then a possible contribution to be made in a software tool that would
-help design and evaluate tournament structures. This project encapsulates an
-effort to do that over the course of my undergraduate Advanced Computing Project
-(COMP4560), by creating a Embedded Domain-Specific Language for tournament
-description and evaluation, as a Haskell library. The software library developed
-for this project is available online on [[https://github.com/mikeplus64/journeyman][GitHub]], which also hosts [[https://mikeplus64.github.io/journeyman/][API
-documentation]].
+There is possible contribution to be made in helping to determine what
+tournament structures are most effective under the constraints of a real-world
+tournament. This project aims to make such a contribution, in the form of a
+software library that helps with the design and evaluation of tournament
+structures.
+
+More specifically, this project encapsulates my effort to do that over the
+course of my undergraduate Advanced Computing Project (COMP4560), by creating a
+Embedded Domain-Specific Language for tournament design and evaluation, as a
+Haskell library. The software library developed for this project is available
+online on {{{url(https://github.com/mikeplus64/journeyman, GitHub)}}}, which
+also hosts its {{{url(https://mikeplus64.github.io/journeyman, API
+documentation)}}}. This thesis then serves as an overview of existing literature
+into relevant topics, the software I have developed, and the results of using
+this project to perform analysis on a variety of tournament structures.
+
+* Acknowledgements
+
+Much thanks is given to Ranald Clouston, who supervised this project through the
+year.
 
 #+latex: \newpage
 
-* Background
+* Background and Motivation
 
-The economics of sports and eSports tournaments are also worth noting here.  The
-social impact of this is out of scope for this project, but clearly with [XXX:
-growth in Twitch/stream viewerships] these tournaments are becoming a
-significant part of the zeitgeist.
+The economics of sports and eSports tournaments are staggering; in 2021 nearly
+$200bn USD was spent on sports betting [cite:@sportsbetworldwide] alone. At
+least $303m USD has been allocated in prize pools for /DOTA 2/ tournaments since
+its release [cite:@biggestesportspools]. Quoting from an article The Economist
+wrote in July 2020 about growth of eSports spurred on by the COVID-19 pandemic
+[cite:@economistesportsgrowth]:
 
+#+begin_itquote
+Take “League of Legends”, perhaps the biggest e-sport in the world. It was
+launched in 2009 by Riot Games, an American firm now owned by Tencent, China’s
+biggest tech firm. It is a complex strategy game, in which teams of five players
+command “heroes” in a battle to defeat each other. As many people play it
+regularly as play tennis; at any one time, 8m people may be online. It also
+supports a professional game that is, at least in terms of the number of players
+earning a living from it, also larger than tennis. The final of the League of
+Legends World Championship last year was watched live by 44m people. By
+comparison the Super Bowl, America’s biggest live sporting event, was watched by
+roughly twice that.
 
+Twelve professional leagues now span all regions of the globe except Africa,
+with 120 franchised teams and perhaps 1,000 professional players. Whereas tennis
+stars in the world’s top 200 often struggle to make a living, “League of
+Legends” players in America are guaranteed a minimum salary of $75,000. There,
+players are entitled to the same visas that other foreign athletes can get. The
+average salary is closer to $400,000, says Chris Greeley of Riot Games. Lee
+Sang-hyeok, a Korean star, known by his tag “Faker”, may be the highest-paid
+sportsman in his country.
+#+end_itquote
 
-* Old Background
+With this in mind, it is worth asking how it is that players are ranked and
+evaluated against eachother. That is: Are the tournaments reliable - are the
+results repeatable? Are they fair? How could we determine this? Indeed, examples
+exist of large real-world tournaments that were possibly unfair
+[cite:@fifa-quant-unfairness][cite:@fifa-risk-of-collusion] or where players
+perceived that there would be a benefit to purposefully losing (throwing)
+matches [cite:@Walker2012][fn::This example is quite poignant, including a scene
+where both teams in a match of an Olympic badminton group stage endeavoured to
+lose against eachother. A total of 4 teams were disqualified in this incident.
+[cite:@double-elim-structure-efficacy-manipulation]] due to the structure of the
+tournament.
 
-* Old Aims
-1. To create a computer language that enables the description of common
-   tournament structures, and also to enable creation of new tournament
+<<motivation>> The initial motivation for this project was my experience in
+helping to run tournaments for the games /Diabotical/ and /Quake Champions/ through
+a {{{url(https://kuachi.gg, website)}}} I built for that purpose. Since its
+inception in 2020, 79 tournaments have been completed through it. Frequently
+questions of fairness in tournaments would arise due to some players seeming to
+have "unfairly" hard or easy tournament brackets. This project then arises from
+a desire to be able to quantify the fairness of the different tournament
+structures that were employed -- if a software tool existed that could aide in
+the design and evaluation of tournament structures (by, for instance, analysis
+and/or simulation), that could have been employed to determine what tournament
+structures were appropriate. Instead, the logic that describes tournaments on
+~kuachi.gg~ are hard-coded into the system, and while some composition options are
+supported, it is a fairly inconvenient process to add new ones.
+
+A key contribution this project seeks to make is to recommend tournament
+structures that are resistant to "false" seeding (initial ranking). If a
+tournament has a number of rank inversions in its seeding, does that number of
+rank inversions reduce or increase after the tournament is ran? That is, to what
+extent does the tournament really sort the players? This is a common problem
+with real-world tournaments as often the relative skill level of players is
+simply an unknown factor, and so guesses must be made.
+
+This project contributes a small set of primitives that can be used to describe
+arbitrary tournaments, an Embedded Domain-Specific Language (eDSL) for
+tournament description that employs those primitives, an interpreter capable of
+running and analysing tournament structures built using the eDSL. Additionally,
+discussion of analysis of common tournament structures by the software library
+is included in this thesis.
+
+** <<aims>> Scope and aims of this project
+With this background in mind, these are the aims of the project:
+
+1. To create a computer language that enables the convenient description of
+   common tournament structures, and also to enable creation of new tournament
    structures as compositions of existing ones.
 
 2. To create an interpreter for this language that can evaluate tournament
    descriptions; to be able to run the tournaments described by the language
    defined in Goal 1.
+
 3. To systematically evaluate the efficacy of different tournament structures in
-   terms of quantifiable properties such as fairness, length, repeat-avoidance,
-   and so on.
+   terms of quantifiable properties such as fairness, length, repeat-match
+   avoidance, and so on.
 
-These aims are underwritten by my own experience as a tournament organiser and
-developer of a popular website that facilitates the running of eSport
-tournaments; in running these tournaments, questions of fairness and the ideal
-arrangement of tournament brackets are commonplace; validating existing methods
-or otherwise creating newer and more effective ones would be a valuable
-development here. [fn:: In my experience, the question of what tournament
-structure is most effective comes up very frequently, and players often do feel
-their placement in a tournament was unfair, or a player's seeding unduly caused
-them to place higher or lower than they "should" have according to an assumed
-skill level. I believe avoiding these scenarios would improve player
-satisifaction and enjoyment.]
+I call the software library developed Journeyman.[fn::A Journeyman is a term for
+a consistently high-achieving career sportsperson that is not at the highest
+level of their sport.]
 
-A key observation of this project is the existence of an equivalent sorting
-network to many tournament structures. In particular, any tournament structure
-whose rounds do not depend on the results gathered from prior rounds, and whose
-matches can be expressed in Compare-and-Swap Matches (CASM), have an equivalent
-sorting network construction. A hierarchy of match types is then constructed,
-and it is shown that CASM is a specialisation of Points Matches (PM), from which
-we can also construct tournaments based on ranking systems such as Elo
-((cite:@elo)). These are common
+\newpage
 
-This fact that a tournament can be constructed from any comparison-based sorting
-algorithm (swapping comparison with a game/match[fn::*Game* shall be used to
-refer to a contest between two players from here on. The exact terminology is
-not that important.]) is an important observation that I have made and informs
-the aims of the project.
+* Definitions
 
-The research I will be conducting has these aims:
+As an aide to readers, the following glossary is provided. I specialise certain
+terms to have exactly one specific definition in order to avoid confusion and
+limit the scope of this thesis.
 
-1. Creation of a domain-specific language (DSL) to describe tournament structures
+- Tournament :: A schedule of Matches by which a set of Players are ranked in
+  order of most-skilled first to least-skilled last.
+- Player :: A participant in a Tournament.
+- Match :: A pairing of exactly two Players in a tournament that has an
+  uncertain outcome to be determined by a game of some sort.
+- Bracket :: A schedule of games in an elimination tournament, commonly
+  expressed as a binary-tree diagram of player matchups.
+- Single Elimination :: A kind of elimination tournament in which the loser of
+  each match during a round is eliminated. Each round successively narrows the
+  field of remaining players until just one winning player remains. Also known
+  as a _knockout_ or _sudden-death tournament_.
+- Double Elimination :: A kind of elimination tournament in which each player is
+  allowed to lose up to 1 match before they are eliminated. Also known as a
+  _double knockout tournament_. The tournament is divided into two brackets; an
+  "upper" or "winner's" bracket, and a "lower" or "loser's" bracket; the upper
+  bracket contains only players that have not lost a match up to that point, and
+  the lower bracket contains players who have lost a match in the upper bracket
+  prior to that point.
+- Seeding :: A ranking of the players of a tournament before the tournament
+  begins. Seeding can have a significant impact on the outcome of elimination
+  tournaments; consider the worst-case seeding of a Single Elimination
+  tournament in which the two best players match against each-other
+  immediately.
 
-2. Use of this DSL to describe common and novel tournament structures:
-   1. Round-robin
-   2. Elimination/knockout
-   3. Double/triple/... elimination tournament
-   4. Swiss-style tournament
-   5. Arbitrary sorting network designs, such as insertion sort, bubble sort,
-     bitonic sort, etc.
-   6. Partial sorting algorithms or partitioning algorithms such as quickselect
-     or median of medians method
+  In a seeded tournament, Player $0$ is the "highest" or "best" seed, denoting
+  the player with the highest skill. Player $(n - 1)$ is the "lowest" or "worst"
+  seed, denoting the lowest skilled player.
 
-3. Use of this DSL to describe compositions of created tournament structures:
-   1. Sequences of tournament structures (as in a "multi-stage" tournament)
-   2. Partitions of tournament structures by Divisions, where a each player in a
-      given Division $D_1$ is expected to be of a higher skill than each player
-      in the next division $D_2$, and so on.
-   3. Groups of tournaments, where each group is expected to have the same
-      average skill level as each other.
+- Slaughter Seeding :: A method of seeding a tournament such that the initial
+  match for each player is the mirror of that player; the best player shall play
+  the worst, the second best shall play the second-worst, and so on.
+- Round Robin :: A kind of tournament where each player plays each other player
+  once.
+- Group Stage :: A kind of tournament where players are split into a fixed
+  number of groups, and a Round Robin tournament is played within each group.
+  those groups.
+- Stage :: Where a tournament is split into 2 or more sub-tournaments that run
+  in sequence, one after the other, those sub-tournaments are often coined
+  /stages/.
+- Upset :: A match result is said to be an /upset/ if the higher seeded player
+  loses to the lower seed. (Regardless of how close their true skill levels may
+  be.)
 
-4. Analysis of these tournament structures according to quantifiable metrics,
-   through simulation. The simulation can take place using generated skill
-   distributions (most likely through Elo [fn::A common player ranking system,
-   designed originally for Chess, that allows for computing the probability of a
-   player winning against another.]), or by using real-world data such as Elo
-   distributions of Chess or Tennis players, which is publicly available data.
-
-   - Efficiency
-     + The time it takes to complete a tournament
-     + The number of games that can be ran in parallel
-   - Fairness
-     + repeat avoidance or not
-     + Preservation of pre-determined skill levels
-     + Maximum waiting/idle times for players between games
-   - Robustness against manipulation - can strategically losing games improve a
-     player's final ranking? e.g., can strategically losing games in an early
-     round ensure an easier later tournament?
-   - Robustness against inaccurate seeding (where the true skill level of a
-     player does not coincide with their seeding [fn::The rank a player is
-     assigned at the outset of a tournament. This is especially important in
-     elimination-style tournaments. The worst-case scenario helps illustrate
-     why: If the player with the true highest skill and the player with the
-     second true highest skill are _seeded_ to play each other in the first round,
-     either one is guaranteed to be immediately eliminated.] - such as if they
-     simply have a "bad day", or their skill level was perceived as higher or
-     lower than it truly is by an event organiser.)
-   - Ranking precision
-   - Reliability - how repeatable is the result of a tournament?
-
-Given these aims, it is important to consider the existing literature on topics.
-These are the topics I am looking for roughly. I use "efficacy" here to
-encompass fairness, reliability, etc., as outlined above.
-
-- Efficacy of tournament structures
-  + Simulations of tournament structures under real-world or generated skill
-    distributions
-  + Improvements that can be made to existing tournament structures
-  + Common pitfalls of existing tournament structures
-  + Relative strengths or weaknesses of tournament structures
-- Studies on the efficacy of past real-world tournaments
-- Domain-specific language design and development
-- Existing software tooling that can help accomplish the aims above
-
-Things out of scope of the research aims, but that may be useful to note,
-include:
-- Psychology of sports and eSports tournaments
-- Effect of different tournament structures on player performance
-- Player preference to different tournament structures
-- Perceived (by players) fairness of different tournament structures
-
+\newpage
 
 * Literature Review
 
-I proceed here to review XXX papers relevant to the above topics. Each section
-is the title of a paper and links to a proper reference in the bibliography. It
-is worth noting that this section overlaps with the notes I have written already
-for the project in my GitHub repository for it, as it is my current COMP4560
-project. [fn::These notes are available [[https://github.com/mikeplus64/journeyman/blob/main/docs/background/DSL%20design.org][online]], and so the similarity will
-hopefully be noted by TurnItIn on submission of this literature review].
+Before proceeding to the design and implementation of this project, I will
+provide an overview of some of the relevant literature that informed how the
+project proceeded and what gaps existed in knowledge that it could help narrow.
+I consider literature across the topics of Domain-Specific Language design,
+tournament design, and tournament fairness. Each sub-section here denotes a
+particular paper that was considered.
 
-Each paper has its own measure for what constitutes fairness, balance,
-competitive development, etc., which are usually similar but not necessarily
-identical. My research project therefore aims to provide a tool that makes it
-easy to simulate tournaments and to measure such metrics in a unified fashion.
+** "Design Guidelines for Domain Specific Languages" [cite/author:@dsl-guidelines][cite:@dsl-guidelines]
 
-** "The structure, efficacy, and manipulation of double-elimination tournaments" [cite:@double-elim-structure-efficacy-manipulation]
+This paper provides a list of guidelines to follow for the design of DSLs. I
+followed it as a rough guide used in the process of designing the Journeyman
+eDSL. The design guidelines are codified into a list of suggestions; here I
+respond to each.
 
-This paper provides information about double-elimination tournaments in
-particular, and in contrast to single-elimination tournaments. Several important
-theorems are provided as well as statistical analysis performed on the efficacy
-of tournaments.
+1. *"Identify language uses early"*
+   See [[aims][/Scope and aims of this project/]].
+
+2. *"Ask questions"*
+   + *"Who is going to model in the DSL?"* Tournament designers who may find the
+     software useful.
+
+   + *"Who is going to review the models?"* Tournament designers who may find
+     the software useful.
+
+   + *"When?"* Prior to the design of a tournament, but when factors such as time
+     and resource constraints are available.
+
+   + *"Who is using the models for which purpose?"* Tournament designers may use
+     the eDSL to help identify and analyse the efficacy of various tournament
+     structures, and apply those results; for myself to the real-world use-case
+     I identify in the [[motivation]] section.
+
+3. *"Make your language consistent."* I apply an Algebra of Graphs-esque approach
+   to the design of the eDSL in order to keep its semantics simple.
+
+4. *"Decide carefully whether to use graphical or textual realization"*
+
+   A textual representation will be the primary format for this eDSL, as it is
+   intended to be a programming library with the ability to describe arbitrary
+   tournament structures. That said, the software includes the ability to
+   visually interpret a tournament.
+
+5. *"Compose existing languages where possible"*, and,
+6. *"Reuse existing language definitions"* One of the key factors that decided the
+   choice of eDSL vs DSL was the ability for an eDSL to leverage its host
+   language to the full extent. Indeed, it does become apparent that many
+   tournament structures can be expressed quite conveniently with Haskell's list
+   functionality alone.
+
+7. *"Reuse existing type systems"* As will be seen in later sections, the
+   type-system is used effectively here to restrict certain kinds of tournament
+   composition and to simplify the logic required to evaluate a given
+   tournament.
+
+** "Algebraic graphs with class (functional pearl)" [cite/author:@Mokhov2017Sep][cite:@Mokhov2017Sep]
+
+This paper and the accompanying Haskell library ~algebraic-graphs~ largely largely
+inspired the design of the core ~Tournament~ data type that the Journeyman eDSL
+manipulates. The key observation is that graphs can be described using two
+operators ~Connect~ and ~Overlay~ which each have desirable properties.
+
+In the Journeyman eDSL, the ~Overlay~ operator is reproduced to mean the
+interleaving or parallel existence of two sub-tournaments, and can be intuited
+as an algebraic sum operator. The ~Connect~ operator is not reproduced, as it does
+not have an intuitive analogue in tournament structures; instead, a ~Sequence~
+operator connects tournaments by running them one after the other, and can be
+viewed as an algebraic product operator. Type information is then used to
+guarantee that we can turn any arbitrary tournament, which can nest combinations
+of ~Overlay~ and ~Connect~ at will, into a "flattened" stream of rounds. For more
+information, see [[design][/Design/]].
+
+** "The structure, efficacy, and manipulation of Double Elimination tournaments" [cite/author:@double-elim-structure-efficacy-manipulation][cite:@double-elim-structure-efficacy-manipulation]
+
+This paper provides information about Double Elimination tournaments in
+particular. Several important theorems are provided for their design - in
+particular a result about the optimal linking between the upper and lower
+brackets of a Double Elimination tournament - as well as statistical analysis
+performed on the efficacy of tournaments.
 
 Statistical analysis is performed to compare the reliability of
-single-elimination tournaments to double-elimination ones, where
-double-elimination is shown to be much more efficacious in allowing the most
-skilled player to win than single-elimination. Simulations are performed using
-chosen models for the probabilities of players winning against each other, rather
-than on real-world data.
+Single Elimination tournaments to Double Elimination ones, where
+Double Elimination is shown to be much more efficacious in allowing the most
+skilled player to win. Simulations are performed using chosen models for the
+probabilities of players winning against each other, rather than on real-world
+data.
 
-Manipulation of double-elimination tournaments is also considered, and an
+Manipulation of Double Elimination tournaments is also considered, and an
 interesting case study provided to demonstrate the need for tournaments that are
 robust against manipulation: "in the 2012 Olympics, four of the top badminton
 teams were disqualified for trying to intentionally lose matches, causing an
@@ -228,84 +335,96 @@ when possible." The importance of seeding in the outcome of elimination
 tournaments is noted as well. Several theorems are provided on the complexity of
 manipulation of a tournament by players.
 
-Of note is that this paper provides a result that shows that a
-double-elimination _Link Function_. The Link Function is the algorithm that
-chooses where in the lower bracket a player from the upper bracket should go
-after a loss. The choice of Link Function is quite important in order to avoid
-re-matching players who already faced each other in the upper bracket, for as long
-as possible. It is shown that steps taken toward repeat avoidance need only be
-done up to $\log(R)$ with $R$ the total number of rounds, and an algorithm is
-provided as a suggested "optimal" Link Function using the provided primitives
-(Swap and Reverse) for constructing link functions. I have implemented this
-suggested algorithm in Rust in my tournament website https://kuachi.gg; the
-implementation is [[https://gitlab.com/_mike/kuachicups/-/blob/master/server/src/db/tables/cup/stage/elim_bracket/link_fun.rs][available online]].
+Double Elimination *Link Functions* are described in this paper: The Link Function
+is the algorithm that chooses where in the lower bracket a player from the upper
+bracket should go after a loss. The choice of Link Function is quite important
+in order to avoid re-matching players who already faced each other in the upper
+bracket as much as possible [fn::Avoiding rematches has intuitive benefits;
+players are able to gauge their skill against multiple opponents, and thus so
+does the tournament.]. Two operations, named Swap and Reverse, are described in
+constructing a Link Function, and an optimal Link Function that avoids rematches
+as much as possible can be constructed using $\ceil{\log(R)}$ Link or Swap
+operations.
 
-
-** "Double-Elimination Tournaments: Counting and Calculating" [cite:@double-elim-cc]
+** "Double Elimination Tournaments: Counting and Calculating" [cite/author:@double-elim-cc][cite:@double-elim-cc]
 
 This paper provides broad information about the construction of Double
-Elimination tournaments. The efficacy of "unbalanced" double-elimination
+Elimination tournaments. The efficacy of "unbalanced" Double Elimination
 tournaments is considered in detail. A system for uniquely numbering
-single-elimination tournaments is also provided, with extension then to number
-double-elimination tournaments by the structure of the lower bracket as well as
+Single Elimination tournaments is also provided, with extension then to number
+Double Elimination tournaments by the structure of the lower bracket as well as
 the linking function used.
 
-Statistical analysis is performed by using an assumed "preference matrix",
+Statistical analysis is performed by using an assumed preference matrix,
 denoting the pairwise probabilities of one team winning a game against another.
-This is an interesting approach that may be extremely difficult to compute for
-larger tournaments (only 4 player tournaments are considered by preference
-matrix), but offers several advantages over "traditional" ranking methods such
-as Elo. In Elo, all players are assumed to have an absolute quantifiable skill
-level, that satisfies transitivity; if player $A$ is more skilled than player
-$B$, and player $B$ is more skilled than player $C$, then $A$ must be more
-skilled than player $C$. A preference matrix approach allows for the fact that
-some players may do particularly well or poorly against other players. It may be
-possible to calculate a preference matrix from existing public data from
-existing games, by assigning a secondary ranking to players by treating each
-possible pair as its own separate game.
+Using a preference matrix contrasts against methods used in "real" games to
+calculate the probability of a player winning a particular match against
+another, such as the Elo Rating System[cite:@EloDesc]; in Elo, all players are
+assumed to have an absolute quantifiable skill level, that satisfies
+transitivity; if player $A$ is more skilled than player $B$, and player $B$ is
+more skilled than player $C$, then $A$ must be more skilled than player $C$. A
+preference matrix approach allows for the fact that some players may do
+particularly well or poorly against other players. It may be possible to
+calculate a preference matrix from existing public data from existing games, by
+assigning a secondary ranking to players by treating each possible pair as its
+own separate game.
 
-The larger double elimination tournament shown in this paper does not to have a
-"balanced" lower bracket. Convention in modern double-elimination tournaments is
+The larger Double Elimination tournament shown in this paper does not to have a
+"balanced" lower bracket. Convention in modern Double Elimination tournaments is
 that, to maximise fairness and minimise the number of rounds required, one
 should alternate between rounds where players are from the lower bracket play
 against each other, and where "new" players are added in to the lower bracket
-from a round in the upper bracket. This is shown in
+from a round in the upper bracket. This is shown in "The structure, efficacy,
+and manipulation of Double Elimination tournaments"
 [cite:@double-elim-structure-efficacy-manipulation].
 
+** "Simulating competitiveness and precision in a tournament structure: a reaper tournament" [cite/author:@reaper][cite:@reaper] and "Reaper Tournament System" [cite/author:@reaper2017][cite:@reaper2017]
+This pair of papers describes a novel tournament structure coined "Reaper
+tournaments". [cite:@reaper2017] describes most of the results and
+[cite:@reaper] develops the knowledge of the Reaper tournament system further,
+and creates a similar (but new) tournament structure called /Reaper elimination/.
 
-** "Simulating competitiveness and precision in a tournament structure: a reaper tournament" [cite:@reaper] and "Reaper Tournament System" [cite:@reaper2017]
-
-I consider a pair of papers here sharing two of the same authors;
-[cite:@reaper2017] describes most of the results and [cite:@reaper] develops the
-knowledge of the Reaper tournament system further, and creates a similar (but
-new) tournament structure called _Reaper elimination_.
-
-This paper proposes a novel tournament structure called a "Reaper" tournament.
-It has several advantages to existing tournament structures, that are outlined
-throughout the paper. This tournament structure is interesting as it is the sort
-of structure that I would like to enable the creation and analysis of through
-the DSL.
-
-The structure of a Reaper tournament is not intuitive to me, but I repeat it
-here in my own words in order to help my understanding of it that it operates as
-an inverted single-elimination tournament initially, where only losers
-"advance", and from there a unique algorithm for repeatedly selecting and
-eliminating the worst player is applied. This seems to have similarity to a
-selection sorting algorithm. Because the Reaper tournament system is a complete
-sorting algorithm, it has 100% ranking precision.
+The structure of a Reaper tournament is that it operates initially as an
+inverted Single Elimination tournament, where only the losers of each match
+advance along the Single Elimination bracket. An algorithm is applied to
+successively select and eliminate the worst player successively. Indeed, Reaper
+tournaments seem to be analogous to common Selection Sort algorithms; and by
+only eliminating a single player in each round, it is able to achieve 100%
+ranking precision - or at least that no player shares the same result as
+another.
 
 The number of matches required in a Reaper tournament is not given a general
 formula in the system, nor the number of rounds, which is a significant weakness
-to its adoption as a tournament structure in practice - events need to happen
-usually within known time constraints. Description of the Reaper tournament
-system as a sorting network may help to elucidate its properties. For $n=8$, the
-Reaper tournament requires $m\in[15,17]$ matches compared to $m=14$ for double
-elimination or $m=28$ for a round-robin.
+to its adoption as a tournament structure in practice - tournaments need to
+happen usually within some known time constraints. Description of the Reaper
+tournament system as a sorting network, though the Journeyman eDSL, may help to
+elucidate its properties. For $n=8$, the Reaper tournament requires $m\in[15,17]$
+matches compared to $m=14$ for double elimination or $m=28$ for a round-robin.
 
-It is also shown that the _stability progression_, measuring whether winning a
+It is also shown that the /stability progression/, measuring whether winning a
 game is more desirable than losing, is preserved in the Reaper tournament
 structure. It is never a desirable outcome to lose a match in the Reaper
 tournament structure.
+
+Additionally, two-stage tournament systems where a Group Stage precedes an
+Elimination are considered [cite:@reaper]. The group stage has multiple groups
+of players in each group, and a tournament structure such as round-robin (or
+Reaper), is conducted within that group. Such structures are quite common in
+practice.
+
+Various metrics are created to measure the efficacy of tournaments in practise
+and in simulation. The key metrics are /ENM/, meaning "expected number of
+matches", /ARW/, the "average rank of the tournament winner" (ideally, 1), and
+_RankCor_ $\in [0,1]$ where a value of 0 means the tournament had a completely
+random result with respect to the player's "true" skills/rankings, and a value
+of 1 means that the tournament perfectly preserved those a priori rankings.
+
+Theoretical experiments on 8 player tournaments are conducted that show the
+excellent RankCor of the original Reaper tournament structure. Double
+Elimination stages are also shown to have quite good RankCor (at this size of
+tournament). Real-world tournament data is used that demonstrates the robustness
+of Double Elimination tournaments in terms of _RankCor_, with Reaper tournaments
+also performing excellently, though doubling the number of matches required.
 
 *** Description of the Reaper tournament structure algorithm
 I reproduce in my own words the algorithm for the Reaper tournament structure
@@ -324,9 +443,9 @@ Steps:
    (who lost all matches prior to this round), and they are eliminated from the
    tournament. Let the winner of the final game in this step be the _Reaper_.
 
-   This basically describes an "inverted" single elimination tournament - where
+   This basically describes an "inverted" Single Elimination tournament - where
    to proceed to the next round, you must _lose_ the current round. The "winner"
-   (i.e., loser of all games) then of this inverted single elimination
+   (i.e., loser of all games) then of this inverted Single Elimination
    tournament is the one who is actually eliminated from the tournament.
 
    The question of what matching algorithm is used is left open by the authors
@@ -349,70 +468,47 @@ Steps:
    loser here is eliminated and is ranked above the previously eliminated
    participant, while the winner is set to be the new Reaper.
 
+The expression of this structure in an eDSL is challenging, as the tournament
+needs to be able to "respond" to the results of matches in order to maintain a
+respect list and candidates list.
 
 *** Reaper Elimination
-A new structure is proposed in the following paper [cite:@reaper2017] that
+A follow-up structure is proposed in the second paper [cite:@reaper2017] that
 develops the Reaper tournament structure to give it an upper bound on the number
-of matches required, and a static tree structure. A visualisation of the Reaper
-elimination tournament structure is provided in that demonstrates a static
-structure to the tournament. Thus, it is a tournament that could be expressed as
-a sorting network. It is shown that the number of matches required is $O(N\log_2
-N)$.
+of matches required, and a static tree structure. Thus, it is likely a
+tournament that could be expressed as a sorting network. It is shown that the
+number of matches required is $O(N\log_2 N)$.
 
-The second paper analyses two-stage tournament systems where a _group stage_
-precedes an _elimination stage_. The _group stage_ has multiple groups of players in
-each group, and a tournament structure such as round-robin (or Reaper), is
-conducted within that group.
-
-Various metrics are created to measure the efficacy of tournaments in practise
-and in simulation. The key metrics are _ENM_, meaning "expected number of
-matches", _ARW_, the "average rank of the tournament winner" (ideally, 1), and
-_RankCor_ $\in [0,1]$ where a value of 0 means the tournament had a completely
-random result with respect to the player's "true" skills/rankings, and a value
-of 1 means that the tournament perfectly preserved those a priori rankings.
-
-Theoretical experiments for on 8 player tournaments are conducted that show the
-excellent RankCor of the original Reaper tournament structure.
-Double-elimination stages are also shown to have quite good RankCor (at this
-size of tournament). Real-world tournament data is also used that demonstrates
-the robustness of double-elimination tournaments in terms of _RankCor_, with
-Reaper tournaments also performing excellently for up to double the number of
-matches required.
-
-
-** "Quantifying the unfairness of the 2018 FIFO World Cup qualification" [cite:@fifa-quant-unfairness] and "Risk of Collusion: Will Groups of 3 Ruin the FIFA World Cup?" [cite:@fifa-risk-of-collusion]
+** "Quantifying the unfairness of the 2018 FIFO World Cup qualification" [cite/author:@fifa-quant-unfairness][cite:@fifa-quant-unfairness] and "Risk of Collusion: Will Groups of 3 Ruin the FIFA World Cup?" [cite/author:@fifa-risk-of-collusion][cite:@fifa-risk-of-collusion]
 
 These papers look at real-world sports tournaments, namely the FIFA series of
-soccer[fn::Football?] tournaments. As these are huge events with massive prize
-pools and carry great prestige for participating teams, nations, and hosts,
+soccer/football tournaments. As these are huge events with massive prize pools
+that carry great prestige for participating teams, nations, and hosts,
 examination of these events for fairness criteria is important. These papers
 demonstrate how real-world data can be used to examine and quantify fairness of
 tournament structures.
 
 It is shown in [cite:@fifa-quant-unfairness] that the origin continent of a team
-has an outsized effect on the likelihood of a team in qualifying into the FIFA
-World Cup in 2018. The key takeaway is that a fixed draw rather than a random
-draw for qualification would reduce unfairness. Unfairness is measured by "[...]
-ranking the teams according to their Elo, and summing the differences of
-qualifying probabilities that do not fall into line with this ranking". This
-unfairness metric may be useful in this research project in examination of the
-fairness or not of arbitrary tournament structures.
+had an out-sized effect on the likelihood of a team in qualifying into the FIFA
+World Cup in 2018. It is found that a fixed draw rather than a random draw for
+qualification would reduce unfairness.
+
+Unfairness is measured by "ranking the teams according to their Elo, and summing
+the differences of qualifying probabilities that do not fall into line with this
+ranking".
 
 In [cite:@fifa-risk-of-collusion], the conditions required to aggravate the risk
 of collusion between teams is examined. This can occur when two teams in a Group
-stage are already guaranteed entry into the proceeding stage, but the result of
+Stage are already guaranteed entry into the proceeding stage, but the result of
 their match can adversely affect whether or not another team in that group makes
 it through to the next stage or not. Examples of collusion are examined in
-real-world games. Soccer seems especially susceptible to colluding outcomes as
-draws are possible outcomes in the sport; teams may agree in advance to draw
-against each other, and neither will lose face nor prestige, but both may then
-be enabled to gain points required to proceed to the next stage of the
-tournament. Such examples seem quite common. The risks of collusion are assigned
-probabilities and examined in detail. Situations are examined where a team is
-happy to lose by a small amount, and play to achieve that result.
+real-world games. Games such as soccer where a draw is a possible outcome may be
+susceptible to colluding outcomes; teams can agree in advance to draw against
+each other, and neither will lose face nor prestige, while still possibly being
+able to gain the points required to proceed on to the next stage of the
+tournament.
 
-
-** "Handling fairness issues in time-relaxed tournaments with availability constraints" [cite:@fairness-time-relaxed]
+** "Handling fairness issues in time-relaxed tournaments with availability constraints" [cite/author:@fairness-time-relaxed][cite:@fairness-time-relaxed]
 
 This paper examines computational complexity of time-relaxed tournament game
 scheduling. That is, the problem of scheduling games where there is not a tight
@@ -424,80 +520,53 @@ scope to the research aims of this project. The fairness measures proposed by
 this paper also concern scheduling, which is outside of the scope of this
 project.
 
-
-** "The impossibility of a perfect tournament" [cite:@perfect-impossible]
+** "The impossibility of a perfect tournament" [cite/author:@perfect-impossible][cite:@perfect-impossible]
 
 This paper provides an important result that shows that their constructed
-_fairness_ and _balance_ metrics trade off against one-another, and elimination
-tournaments cannot be constructed that maximise both metrics.
+fairness and balance metrics trade off against one-another, and elimination
+tournaments cannot be constructed that maximise both metrics. The author
+concludes that a perfect tournament design cannot be made because of the
+inherent uncertainty of outcomes and player seeding; indeed, if perfect ranking
+was already available at the outset, there would be little point to running a
+tournament in the first place. The author also provides discussion on the
+tournament outcomes and spectator interest; where players who play optimally are
+perceived to be dull or unimaginative.
 
-The _fairness_ metric here is that the sum of the ranks of winners of each match
+The /fairness/ metric here is that the sum of the ranks of winners of each match
 must be maximised across the whole tournament. This is an interesting definition
 that intuitively works quite well when the tournament structure is also
-minimising the number of matches required - one could construct a degenerate
-case tournament structure that maximises this sum, by, for example, matching 2
-weak players repeatedly until the sum generated by the winners of those matches
-must be greater than the sum generated by the winners of the other matches in
-the tournament. Of course, that would not be an elimination tournament.
+minimising the number of matches required - one could construct a
+degenerate-case tournament structure that maximises this sum, by, for example,
+matching 2 weak players repeatedly until the sum generated by the winners of
+those matches must be greater than the sum generated by the winners of the other
+matches in the tournament.
 
-The _balance_ metric here is to minimise the difference in ranks between players
+The /balance/ metric here is to minimise the difference in ranks between players
 across all matches. By doing this, you create tournament structures that provide
 as more information about players who are closely matched. In the single
 elimination case, it is clear that maximising balance minimises fairness.
-Maximising _balance_ can have the effect of increasing spectator interest, as
+Maximising balance can have the effect of increasing spectator interest, as
 closer games are assumed to be more exciting to watch than "blow-out" games,
 which I can validate from my own anecdotal experience.
 
-The paper proves that a _directed_ tournament that contains any sub-tournament
-where 4 unique players play 2 games in the same round, then the tournament
-cannot minimise both the fairness and balance metrics. The terminology for
-maximising and minimising fairness and balance is somewhat confusing in the
-paper, as, for example, the section "Tournaments that Maximize Both Fairness and
-Balance" discusses a tournament structure that in fact minimises fairness and
-balance, and makes no mention of tournaments that maximise it. Taking the proof
-at face value, that it shows that the balance and fairness metrics cannot be
-_minimised_ (with the necessary conditions satisfied), this does not seem to
-preclude the design of a tournament structure that _maximises_ the fairness and
-balance metrics as the title of the paper would imply. This may just be my
-limited understanding of this paper; a better reading may be required. In that
-section, the paper provides an interesting 4-player tournament structure similar
-to double-elimination, which does minimise (i.e., "make bad") the fairness and
-balance metrics.
+** "A new knockout tournament seeding method and its axiomatic justification" [cite/author:@knockout-seeding][cite:@knockout-seeding]
 
-The author concludes that a perfect tournament design cannot be made because of
-the inherent uncertainty of outcomes and player seeding; indeed, if perfect
-ranking was already available at the outset, there would be little point to
-running a tournament in the first place. The author also provides discussion on
-the tournament outcomes and spectator interest; where players who play optimally
-are perceived to be dull or unimaginative.
-
-** "A new knockout tournament seeding method and its axiomatic justification" [cite:@knockout-seeding]
-
-This paper demonstrates the determinativeness of seeding to single-elimination
+This paper demonstrates the determining effect of seeding to Single Elimination
 tournament outcomes, and proposes an "equal gap" seeding method contrary to the
-traditional "slaughter seeding" method, that, under a _deterministic domain_
-assumption, satisfies fairness, competitive integrity, and equal rank difference
-axioms that are introduced. This assumption is roughly summarised as that for
-any game $m$ with players $a$ and $b$, the player with the highest seed (skill)
-shall win, so the usefulness of equal gap seeding in practice is not completely
-clear to me. It will be a research aim of my project to simulate the effect of
-different seeding methods on tournament outcomes; equal-gap seeding provides a
-plausible alternative to the standard elimination seeding method.
+traditional "slaughter seeding" method, that, under a deterministic domain
+assumption, satisfies the fairness, competitive integrity, and equal rank
+difference axioms that are introduced. Here, determinism refers to assuming that
+given any match, the player with the highest seed/skill shall win.
 
-** "The efficacy of tournament designs" [cite:@tournament-efficacy]
+Applicability of the proposed seeding method outside of the domain assumption is
+an open question, and may be a useful application of the Journeyman library to
+examine its effects.
 
-This paper provides a great template for how statistical analysis and simulation
-can be performed to demonstrate the superiority of particular tournament
-structures over another in terms of given metrics. In particular, Swiss-style
-tournaments are shown to be quite effective when compared to single or double
-elimination tournaments, using generated Elo distributions as well as real-world
-data from chess, soccer, and tennis.
+** "The efficacy of tournament designs" [cite/author:@tournament-efficacy][cite:@tournament-efficacy]
 
 Efficacy of tournaments is analysed in terms of ranking inversions exhibited at
-the end of the tournament, which matches my intuition that tournament structures
-can be expressed as sorting problems, and complements the aims of this project
-quite well. A valuable result is that triple-elimination does not greatly
-improve the efficacy of ranking players compared to double-elimination,
+the end of the tournament. A valuable result is that triple-elimination does not
+greatly improve the efficacy of ranking players compared to Double Elimination,
 especially when accounting for the extra matches required.
 
 Swiss-style tournaments are shown to be very effective at ranking players and
@@ -506,86 +575,605 @@ same number of matches - although Swiss-style tournaments use a matching
 algorithm each round to determine who plays who, they are ran to a fixed number
 of rounds, so they can be engineered to desired level of accuracy and matches.
 Swiss-style tournaments are shown to be superior to single/double/triple
-elimination and group stage tournaments.
+elimination and group stage tournaments. The choice of matching algorithm here
+likely has the greatest effect on result.
 
-The choice of matching algorithm here likely has the greatest effect on result,
-which can be a result that my research project creates. Viewing Swiss-style
-tournaments as partially-evaluated sorting networks enables this view. Indeed,
-the comically titled sorting algorithm "I Can't Believe It Can Sort"
-[cite:@cant-believe-it-can-sort], implemented as a mistaken version of insertion
-or bubble sort, can be viewed as a Swiss-style tournament with a matching
-algorithm that allows rematches, and ran to $n$ rounds for $n$ players; close
-"elements" - players - are repeatedly compared to create an accurate ranking of
-those players.
+\newpage
 
+* Design
 
-** "Design Guidelines for Domain Specific Languages" [cite:@dsl-guidelines]
+In this chapter I will explain the design of the software artefact developed. To
+understand the final design that was implemented, it's first worth examining
+what information lead to it.
 
-This paper provides a list of guidelines to follow for the design of DSLs, that
-may be useful in this project as a DSL is a key artefact of it. In the case of
-this paper, it is not so useful here to "review" it in the sense that other
-literature is reviewed, but instead to respond to the guidelines posited, in
-order to validate the aims of the DSL that is to be designed.
+** Analogies between sorting networks and tournaments
 
-The guidelines identified, and my response to each with respect to this research
-project's DSL, are:
+A key observation of made at the outset of this project is that there is an
+analogy between sorting networks and many tournament structures. Here, a sorting
+network refers to a fixed schedule or "network" of comparisons between a fixed
+set of objects. Each comparison has a fixed coordinate or /wire/ in the network,
+and results in either the objects staying in the same position as they were (if
+they were already in order with respect to eachother), or they exchange places
+if not.
 
-1. *"Identify language uses early"*
+I call a sorting network "partial" if it does not determine a complete ordering
+among players; for instance if out of 16 elements it determines the greatest 8
+in order, but leaves the remaining 8 in two buckets of 4 items where only the
+order of the buckets is known.
 
-   The use of the language is identified in the introduction section of this
-   literature review; the design and implementation of novel tournament
-   structures, that maximise various metrics (ranking precision,
-   competitiveness, fairness, etc).
+#+name: fig:se8
+#+begin_export latex
+\begin{figure}[H]
+\hfill
+\subfigure[\label{fig:se8}Progression of a Single Elimination tournament under Slaughter Seeding]{\includegraphics[width=0.4\textwidth]{./single-elim-bt8.mermaid.pdf}}
+\hfill
+\subfigure[Progression of the same Single Elimination tournament, expressed as a sorting network]{\includegraphics[width=0.4\textwidth]{./singleelimnet8.png}}
+\hfill
+\end{figure}
+#+end_export
 
-2. *"Ask questions"*
+A Single Elimination tournament has a partial sorting network construction. This
+is because at each round we can draw matches between the winners of the previous
+round only; that is, those players that now occupy the "high" position of the
+sorting network, after a single step of the network. At the same time, the
+losers of each round are simply not given any further comparisons (i.e.,
+matches) from the point that they were eliminated, and so remain ranked at
+whatever point they were eliminated.
 
-   + *"Who is going to model in the DSL?"*
-     Myself, and tournament organisers who may find the software useful.
+Similarly, we can also construct a Double-Elimination tournament by sorting
+network, by creating matches between those players that lost in first round of
+the "upper" bracket, and then alternating rounds that either accept new losers
+from the previous upper bracket round into new matches in the lower bracket, or
+that play off players who are in the lower bracket.
 
-   + "Who is going to review the models?"
-     Myself, and tournament organisers who may find the software useful.
+Swiss-style tournaments may fall under sorting networks if a pairing algorithm
+is chosen that does not enforce a no-rematch rule. Indeed, the sorting algorithm
+titled sorting algorithm /I Can't Believe It Can Sort/
+[cite:@cant-believe-it-can-sort], a mistaken version of insertion or bubble
+sort, can be viewed as a Swiss-style tournament with a matching algorithm that
+allows rematches, ran to $\Theta(n^2)$ rounds for $n$ players; players that are
+closely ranked are repeatedly matched/compared. With the result of
+[cite/author:@tournament-efficacy] in mind, this sorting network with comically
+poor characteristics may indeed be an extremely effective tournament structure
+-- if a quadratic number of rounds is permissible.
 
-   + "When?" During or near to project artefact completion, for use in creating
-     analysis that will be reported on in the final thesis paper.
+#+name: fig:cantbelieve8
+#+attr_latex: :placement
+#+caption: The first 8 rounds of an _I Can't Believe It Can Sort_ tournament structure, visualised in the Journeyman-UI tool.
+[[./cantbelieve8.png]]
 
-   + "Who is using the models for which purpose?"
-     - For myself: To identify and analyse the efficacy of various :tournament
-       structures
-     - For other tournament organisers: Run novel tournament structures with
-       real players
+I call tournaments that have a direct sorting network analogy Sorting Network
+Tournaments (SNT). SNT does not encapsulate all tournaments that intuitively
+have a static structure. Namely, they cannot express round-robin tournaments. In
+a round-robin tournament, every player has exactly one match against every other
+player. But after a single round in a SNT, which players occupy what slots of
+the network are unknowable; hence we cannot proceed after a round of a SNT to
+pair "every other" player without the possibility of a rematch. Since in a SNT
+the players must exchange position upon a player from a numerically greater slot
+beats a player from a numerically lesser slot, a SNT Round-Robin requires
+knowledge of each prior round to avoid rematching.
 
-3. "Make your language consistent."
+We can work around this by defining another category of tournaments that
+intuitively have a static structure (given some $n$ number of players), which I
+call Static Non-Sorting Network Tournaments (SNSNT), in which swap-exchange
+matches are removed, but a sorting mechanism is available based on points
+accumulated by players each match over a fixed number of rounds. A round-robin
+is such a tournament, since we can trivially construct a full round-robin
+schedule in advance using known algorithms such as the Circle Method.
 
-   The DSL should borrow existing semantics of existing tooling as much as
-   possible. I believe that semantics similar to [[https://graphviz.org/doc/info/lang.html][GraphViz DOT]] will be
-   appropriate, with the addition of supporting mathematical operations, and
-   some looping or recursion constructs.
+\newpage
+** <<design>> A Type for Tournaments
 
-4. "Decide carefully whether to use graphical or textual realization"
+The core type of the eDSL is described here. The primary feature of this type is
+its simplicity and ease of analysis. Tournaments in this library depend on two
+key operators inspired by the ~algebraic-graphs~ package, which are used to
+manipulate a small set of primitive tournament types. The most basic primitive
+chosen is ~Match :: (Int, Int) -> Tournament~, which simply requests that match
+specified by the pair of sorting network slots. To justify the design of the
+core eDSL type, we shall build it from scratch:
 
-   A textual representation will be the primary format for this DSL, due to the
-   extra effort required to design a visual system. However, it is noted that
-   existing tournament structures are often fully "visual" in nature; a
-   tournament organiser may elect to use a pen and paper to draw a tournament
-   structure and the progression of players through it. Therefore, visualisation
-   of the tournament structures _after_ creation from the DSL may be provide some
-   value.
+Firstly, we need a way to, at a minimum, have two matches run at once. We can
+then generalise this operatorto allow any two tournaments to run in lock-step.
+Thus, the first operator defined is named ~Overlay~, which overlays two
+tournaments together, running them in parallel. The ~(+++)~ operator provides an
+infix shorthand for this operator. For instance, the first round of a 4-player
+Single Elimination tournament can be encoded with just ~(+++)~ and ~Match~:
+~(Match 0 3) +++ (Match 1 2)~, or 8-player: ~(Match 0 7) +++ (Match 1 6) +++
+(Match 2 5) +++ (Match 3 4)~. Note that unlike in a binary tree representation,
+the order of matches with respect to each-other has no effect on what tournament
+is described. To illustrate this, recall Figure [[fig:se8]]; how would the expected
+outcome change if at the initial stage, the match $(0,7)$ was swapped with
+$(2,5)$?
 
-5. "Compose existing languages where possible", and,
-6. "Reuse existing language definitions"
-   As above, the language design will take significant cues from GraphViz's DOT
-   format.
+The ~(+++)~ operator satisfies these algebraic properties:
+1. Transitivity: ~(x +++ y)~ \equiv ~(y +++ x)~
+2. Associativity: ~(x +++ (y +++ z))~ \equiv ~((y +++ z) +++ x)~
+3. Identity: ~(Empty +++ x)~ \equiv ~(x +++ Empty)~ \equiv ~x~
 
-7. "Reuse existing type systems"
-   This guideline raises the question of whether implementation of an eDSL may
-   be appropriate or not, as an eDSL can re-use the type system of its host
-   language, which may be quite valuable if the type system is fairly expressive
-   such as in a language like Haskell.
+Secondly, we need a way to, at minimum, run two matches one after the other. We
+can then generalise this operator to allow any two tournaments to run in
+sequence. Thus, the second operator defined is ~Sequence~, which connects two
+tournaments together by running them one after the other. It is given an infix
+shorthand ~(***)~. It cannot satisfy transitivity, it does satisfy
+associativity. It does also /not/ satisfy Identity; the reason for this is that
+creating empty rounds may be useful in the context of certain kinds of
+interleaving two tournaments together, such as allowing one tournament to run in
+even rounds, and another to run in odd ones. This could be achieved by
+sequencing an ~Empty~ round to every other round in the two input tournaments,
+and then overlaying them both -- but only if the Identity property is not
+granted to ~Sequence~.
 
+We now have a simple tournament type ~data Tournament0 = Overlay Tournament0
+Tournament0 | Sequence Tournament0 Tournament0 | Match Int Int | Empty~ which I
+claim is isomorphic to SNT, under an interpretation of ~Match~ always causing a
+swap-exchange to occur if there was an upset result. This structure does present
+some challenges in being able to generate a _schedule_ of matches from it; since
+there can be an arbitrary, possibly unbalanced, mix of ~Overlay~ and
+~Sequences~; consider the following tournament:
 
+#+attr_latex: :placement
+#+name: unbalancedt0
+#+caption: An unbalanced combination of sequences and overlays in a tournament
+[[./unbalanced.mermaid.pdf]]
 
+#+begin_src haskell
+unbalancedT0 = ((Match 0 1) +++ (Match 2 3))
+           +++ ((Match 4 5) *** (Match 0 1))
+#+end_src
 
-* A Library for Tournament Design
+How to interpret this may not be immediately obvious. Obviously, on the second
+branch, match $(4,5)$ and $(0,1)$ are intended to run one after the other. But
+what does it mean to overlay on this structure? The interpretation taken by
+Journeyman is logically to insert an equivalent number of "empty sequences" that
+balance the tournament with the side that has more sequences than the other.
+That is, we /aligning/ the two sides of an overlay operation.
+
+#+name: fig:balance1
+#+begin_export latex
+\begin{figure}[H]
+\hfill
+\hspace*{-2cm}\subfigure[\label{fig:balance1}Step 1]{\includegraphics[width=9cm]{./unbalanced2.pdf}}
+\hfill
+\subfigure[\label{fig:balance2}Step 2]{\includegraphics[width=6cm]{./unbalanced3.pdf}}
+\hfill
+\end{figure}
+#+end_export
+
+A tournament that is expressed as a sequence of overlays of matches is said to
+be in Tournament Round Normal Form (TRNF); it can be thought of as a sequence of
+_rounds_ of a tournament or sorting network, and it is now trivial to traverse
+this to create a schedule of rounds, of matches. Tournaments that satisfy this
+property are much easier to interpret than tournaments that don't.
+
+By encoding a measure of _depth_ (think, number of rounds) of a tournament into
+its type, we can greatly simplify functions that interpret tournaments; so long
+as we can transform any tournament into TRNF, we only need to express a function
+in terms of a single round of a tournament to be able to lift it to work on
+arbitrarily-deep tournaments.
+
+\newpage
+Consider if we simply add a type-level natural number to the ~Tournament~ type:
+
+#+begin_src haskell
+data Tournament :: Nat → Type where
+  -- | Connect two tournaments by having them occur
+  -- simultaneously; analogous to the "Overlay" operator
+  -- from algebraic-graphs
+  Overlay :: Tournament a → Tournament a → Tournament a
+  -- | Connect two tournaments by running one after the
+  -- other. Note the change in depth
+  Sequence :: Tournament a → Tournament b → Tournament (a + b)
+  -- | Request a single match to be played
+  One :: Match → Tournament 1
+  -- | Do nothing
+  Empty :: Tournament t
+
+-- | Play the two players occupying the /slots/ specified by
+-- this match together
+data Match = Match Int Int
+#+end_src
+
+This is now getting quite close to the final type used by the Journeyman eDSL.
+Under this design, so long as we have a function that can lift a function from
+rounds to sequences of rounds as above, and a function that can transform an
+arbitrarily-deep/unbalanced tournament into TRNF, then interpreters over
+tournaments effectively only need to be concerned with singular rounds. As it
+turns out, adding this type parameter guarantees that our function ~toTRNF ::
+Tournament a -> NonEmptyList (Tournament 1)~ does indeed only return single rounds.
+
+Since we only care about distinguishing tournaments of depth $> 1$ between
+tournaments of depth $\le 1$, we can swap out type-level arithmetic for a more
+lossy representation of $\mathbb{N}$: ~data Depth = TOne | TMany~, and
+parameterise the tournament over that instead.
+
+We also need an operation to allow a tournament to be parameterised over the
+number of players available. We would also like to be able to manipulate that
+player count, and moreover, to have a convenient mechanism for dividing
+tournaments along the "player" axis, to, for instance, represent a group stage
+round robin format.
+
+#+begin_src haskell
+  ByPlayerCount :: (Int -> Tournament t) -> Tournament t
+  ByFocus :: (PlayerCount -> [Focus]) -> Tournament t
+
+-- | A focus represents a slice over the current set of
+-- players. Tournament interpreters must use the current
+-- focus as an offset for matches generated within.
+data Focus = Focus { start, length :: Int }
+#+end_src
+
+We also lack a way to tell a tournament interpreter what sorting strategy to
+use; should every upset match result in a swap-exchange? Or should no swaps
+occur, and only a final tally of points be used to finalise player standings?
+Additionally, we can not yet support tournaments that require past match results
+to decide what to do (e.g., conventional sorting algorithms). This motivates the
+final three constructors:
+
+#+begin_src haskell
+  BySwaps :: Tournament t -> Tournament t
+  ByPointAward :: Tournament t -> Tournament t
+  ByStandings :: (Standings -> Tournament t) -> Tournament t
+#+end_src
+
+For an API-centric view of the ~Tournament~ type, see the
+{{{url(https://mikeplus64.github.io/journeyman/Tourney-Algebra-Unified.html,
+~Tourney.Algebra.Unified~)}}} module. The main conceptual difference is that by
+adding a ~ByStandings~ constructor, tournaments can no longer necessarily be
+inspected completely in advance; they may have arbitrarily many rounds,
+conditional on certain match results. Therefore, an abstraction is built that
+allows tournaments to be inspected to their first "pure" subset -- that is, the
+first (in terms of ~Sequence~ order) sub-tournament before a call to
+~ByStandings~.
+
+The design of an abstract streaming type to support this follows from other
+open-source streaming libraries for Haskell, namely, [[https://hackage.haskell.org/package/streaming][~streaming~]]. The streams
+defined in Journeyman however support $O(1)$ concatenation and, as above, have
+the key difference that they do not necessarily require any effectful code to be
+ran to be able to inspect an element of the stream; a stream can purely yield
+values (i.e., matches, or rounds) that can also be popped off purely.
+Additionally, operators are defined for /aligning/ two streams of values
+together, which is how the operation in Figure [[fig:balance1]] is implemented.
+
+With this representation, compilation of tournaments can ultimately reduces them
+to a single stream of a very small set of commands, which become trivial to
+interpret: ~data Op = BEGIN_ROUND | END_ROUND | MATCH Match | PERFORM_SORTING
+Focus SortMethod~. The key detail is that an interpreter must not proceed past
+an ~END_ROUND~ or a ~PERFORM_SORTING~ until all the relevant matches have been
+completed[fn::For ~END_ROUND~, all matches are relevant. For ~PERFORM_SORTING~,
+only those matches under the ~Focus~ specified are.].
+
+Another key implementation detail is that the ~Match~ constructor is guaranteed
+to always refer to different slots in the sorting network, and that the first
+slot is always less than (in terms of index) the second. This greatly simplifies
+some logic such as keeping a sparse matrix of match results arranged ~(Slot,
+Slot) → Maybe Result~; since the values are always ordered and unequal, only an
+upper triangle of such a matrix ever needs to be considered.
+
+\newpage
+** Final Definitions
+I reproduce the final definition below:
+
+#+attr_latex: :options basicstyle=\ttfamily\small
+#+begin_src haskell
+data Tournament :: Depth -> Type where
+  One :: Match -> Tournament TOne
+  Empty :: Tournament t
+  -- | Modify a tournament's focus; that is, the slice of slots of the
+  -- sorting network that it concerns
+  SetFocus :: (Focus -> [Focus]) -> Tournament t -> Tournament (TMod t)
+  -- | Overlay two tournaments, to describe running two sub-tournaments
+  -- in parallel. The depth of the tournaments must be the same
+  Overlay :: Tournament a -> Tournament a -> Tournament a
+  -- | Sequence two tournaments one after the other. The resulting
+  -- tournament has a depth 'TMany' which restricts what functions
+  -- are able to manipulate it.
+  Sequence :: (KnownDepth a, KnownDepth b)
+           => Tournament a -> Tournament b -> Tournament TMany
+  -- | Sort the inner tournament by some sorting method
+  Sort :: SortMethod -> Tournament t -> Tournament t
+  -- | Depend on the player count to produce an inner tournament
+  ByPlayerCount :: (PlayerCount -> Tournament t) -> Tournament t
+  -- | Depend on the current standings, at the outset of the current round, to
+  -- run the tournament.
+  ByStandings :: (Standings -> Tournament t) -> Tournament t
+  -- | Lift a single round of a tournament into having a depth 'TMany'
+  LiftTOne :: Tournament TOne -> Tournament TMany
+  -- | Lift a modified round of a tournament into having a depth 'TMany'
+  LiftTMod :: KnownDepth t => Tournament (TMod t) -> Tournament TMany
+
+-- | The depth of a tournament. Since we only care about distinguishing single
+-- rounds from sequences of rounds, that is the only information stored here.
+data Depth = TOne | TMany | TMod Depth
+
+-- | Reflect a type-level 'Depth' into a term-level value.
+class Typeable d => KnownDepth (d :: Depth) where
+  depthVal :: proxy d -> Depth
+
+instance KnownDepth d => KnownDepth ('TMod d) where
+  depthVal _ = depthVal (Proxy :: Proxy d)
+
+instance KnownDepth 'TOne where
+  depthVal _ = TOne
+
+instance KnownDepth 'TMany where
+  depthVal _ = TMany
+#+end_src
+
+Since there are numerous types in the sorting network representation that are
+ultimately just ~Int~, I introduce some ~newtype~ definitions to prevent the
+accidentally mixing of, for instance, a sorting network slot, and a player.
+These are named ~Slot~, ~Player~, and ~RoundNo~. For convenience, each has the full
+breadth of ~Num~ and ~Integral~ operations available that ~Int~ has.
+
+\newpage
+** The Journeyman eDSL: An accumulating continuation over ~Tournament~
+
+The final eDSL is defined as a continuation-based accumulation monad over the
+original algebraic ~Tournament~ type. Since there are two main operations for
+merging tournaments together (overlays and sequences), the builder is
+parameterised by what depth it is at, which is used to provide the default merge
+operation at that depth. That is, a builder of just matches within a round is a
+~Round ~ Builder TOne~; a builder of rounds then is a ~Steps ~ Builder TMany~.
+
+The key convenience gained here is to be able to syntactically invert the
+~ByPlayerCount~ and ~ByStandings~ constructors; thus:
+
+#+begin_src haskell
+-- | Retrieve the current player count
+getPlayerCount :: Merge t => Builder t () PlayerCount
+getPlayerCount = _
+
+-- | Retrieve the current standings
+--
+-- Warning: this operation will have the effect of segmenting
+-- the tournament into two sections, as a tournament runner cannot
+-- continue past this point without first having the standings.
+getStandings :: Merge t => Builder t () Standings
+getStandings = _
+#+end_src
+
+As the full API largely is a consequence of the primitives outlined above, they
+will not be reproduced here. For API-centric documentation of the Journeyman
+eDSL, see
+{{{url(https://mikeplus64.github.io/journeyman/Tourney-Algebra-Builder.html, the
+online documentation)}}}. Most functions here simply add something to the current
+~Tournament~ accumulation, by whatever merging strategy (overlaying or
+sequencing) is most appropriate.
+
+** Tournament Interaction and Display
+
+In order to inspect and interact with tournaments, a terminal-based UI is built.
+It enables the display and running of tournaments, and allows for inspection of
+the core "Virtual Machine" that compiles and interprets tournaments into a
+stream of commands, such as to easily identify the number of rounds/true depth
+of a tournament, and its parallelisation (if any). Some screenshots of this tool
+have already been included in this thesis.
+
+\newpage
+
+* Demonstration of the Journeyman eDSL
+We shall now tour some tournament structure definitions I have created that use
+the Journeyman eDSL.
+** Round Robin and Group Stage Round Robins
+The /Circle Method/ for round-robin scheduling is used here. The key point to
+note here is the position of the ~points~ function, which requests sorting by
+point awards for the matches within.
+
+[[./robin45.png]]
+
+#+begin_src haskell
+roundRobin :: Steps () ()
+roundRobin = points do
+  count <- getPlayerCount
+  let (!midpoint, !r) = count `quotRem` 2
+  let !n = count + r
+  mapM_
+    (round_ . map match)
+    [ foldAround midpoint (map Slot (0 : ((n - i) ..< n)
+                                      ++ (1 ..< (n - i))))
+    | i <- [0 .. n - 2]
+    ]
+#+end_src
+
+More interestingly, we can use the ~SetFocus~-based combinator ~divideInto~ to
+run multiple parallel round-robin tournaments.
+
+#+begin_src haskell
+groupRoundRobin :: Int -> Steps () ()
+groupRoundRobin numGroups = divideInto numGroups roundRobin
+#+end_src
+
+\newpage
+** Insertion Sort, and /I Can't Believe It Can Sort/
+
+Three variations are provided here. The "naiive" variant of insertion sort here
+follows the folk imperative definition of the insertion sort algorithm; but this
+approach does not take advantage of the parallelisation available in a sorting
+network. While it should be possible for the Journeyman tool to simplify the
+graph of a tournament through an analysis of match dependencies, that is not
+within the scope of work undertaken in this project.
+
+A parallelised sorting network implementation of insertion sort is thus also
+provided. Finally, the /I Can't Believe It Can Sort/ algorithm is provided. Note
+that as expressed, the /I Can't Believe It Can Sort/ algorithm cannot be
+parallelised; every match except for the initial one has a dependency on the
+prior match's result. Possibly, we can improve this by creating a fully
+saturated network that simply alternates between matching the odd-adjacent and
+even-adjacent slots, but that idea is not pursued here.
+
+#+CAPTION: Insertion sort of 8 players represented in Journeyman-UI.
+[[./insertsortnet.png]]
+
+#+attr_latex: :options basicstyle=\ttfamily\small
+#+begin_src haskell
+insertionSortNaiive :: Steps () ()
+insertionSortNaiive = do
+  n <- getPlayerCount
+  i <- list (0 ..< Slot n)
+  j <- list (i ..> 0)
+  swaps (round_ (match (Match j (j - 1))))
+
+insertionSortNetwork :: Steps () ()
+insertionSortNetwork = do
+  n <- Slot <$> getPlayerCount
+  i <- list ([0 .. n - 2] ++ reverse [0 .. n - 3])
+  swaps . round_ . asRound $ do
+    let (m, r) = i `divMod` 2
+    j <- list [0 .. m]
+    match (Match (j * 2 + r) (j * 2 + 1 + r))
+
+iCan'tBelieveItCanSort :: Steps () ()
+iCan'tBelieveItCanSort = do
+  n <- getPlayerCount
+  i <- list (0 ..< Slot n)
+  j <- list (0 ..< Slot n)
+  when (i /= j) do
+    round_ $ swaps $ match (Match i j)
+#+end_src
+
+\newpage
+** Single Elimination
+
+Single Elimination tournaments turn out to be quite easy to represent in
+Journeyman, especially when compared to traditional binary-tree approaches,
+where the exact order of nodes/leaves has a determining effect on outcomes. The
+key observation is that for the first round, with the simple arrangement of
+players from most skilled to least skilled, we can use list operations to split
+that list into two and fold the two sides together; thus making the most skilled
+player meet the least skilled, and the second-most skilled to the second-least
+skilled, and so on, until the two players at the middle level meet. Since this
+operation is quite common in tournament construction, it is given the name
+~foldAroundMidpoint~.
+
+#+BEGIN_SRC haskell
+singleElimination :: Steps () ()
+singleElimination = do
+  count <- getPlayerCount
+  let depth = log2 (2^ceil (log2 count))
+  d <- list [depth, depth-1 .. 1]
+  swaps (round_ (foldAroundMidpoint [0 .. 2^d - 1]))
+#+END_SRC
+
+Note that this tournament does output bye matches between non-existent slots if
+the player count is not a power of 2. These matches are treated as automatic
+wins for the valid player, which is a necessary common practice for elimination
+tournaments that have a binary-tree structure.
+
+[[./singleelim8-2.png]]
+
+\newpage
+
+** Double Elimination
+
+#+caption: An example Double-Elimination bracket hosted on ~kuachi.gg~ [cite:@aql51]
+[[./kuachide.png]]
+
+For Double Elimination it is worth first considering how an analogous sorting
+network can be constructed. Obviously, the upper bracket can proceed identically
+to a single elimination tournament, so we can definitely express it as some
+overlay operation like ~singleElimination +++ lowerBracket~. To elucidate what
+structure is appropriate, I diagram the structure required for an 8-player
+Double Elimination sorting network:
+
+#+caption: For contrast, the same Double Elimination bracket expressed as a sorting network.
+[[./de-8-network.png]]
+
+I use the result provided by [cite:@double-elim-structure-efficacy-manipulation]
+to create a linking function.
+
+#+attr_latex: :options basicstyle=\ttfamily\small
+#+begin_src haskell
+-- A direct implementation of Double Elimination tournaments.
+--
+-- The approach here is to:
+-- 1. Construct a single elimination upper bracket
+-- 2. Create an initial lower bracket round, from the lowers of the first round of
+--    the single elimination bracket
+-- 3. For each other upper bracket round:
+--    3.1. Create a lower bracket round that accepts the losers from that round
+--    3.2. Create a lower bracket round that plays off only LB players against
+--         eachother.
+--
+-- Since we only depend on the rounds generated in the upper bracket, we can
+-- parameterise that; so our "doubleElimination" function is generalisable to be
+-- able to add an extra loser's bracket to _any_ tournament, although it is
+-- likely to have strange results when given tournaments that are not in the
+-- same shape as single-elimination.
+--
+-- Thus we can use this to create quadruple elimination brackets, but not
+-- triple.
+doubleElimination :: Steps () ()
+doubleElimination = addLosersBracket singleElimination
+
+addLosersBracket :: Steps () () -> Steps () ()
+addLosersBracket original = do
+  Right (ub1 :< ubs) <- inspect (ByRound Flat) original
+  let lowerRound1 = foldAroundMidpoint (ub1 ^.. each . likelyLoser)
+  swaps (round_ ub1)
+  swaps (round_ lowerRound1)
+  evaluatingStateT (lowerRound1 ^.. each . likelyWinner) do
+    (i, upper) <- lift (list (V.indexed ubs))
+    lastWinners <- get
+    let shuffledLosers = linkFun i (upper ^.. each . likelyLoser)
+    -- Accept new losing players from the upper bracket
+    let acceptRound = zipWith Match lastWinners shuffledLosers
+    -- Then perform a round of just lower bracket players being eliminated
+    -- I.e., match up the winners of the round_ we just wrote
+    let losersRound = foldAroundMidpoint (acceptRound ^.. each . likelyWinner)
+    -- Finally, add these rounds, and store the winning players in losersRound
+    -- for the next iteration
+    round_ do
+      swaps (toRound upper)
+      swaps (toRound acceptRound)
+    round_ (swaps (toRound losersRound))
+    put (losersRound ^.. each . likelyWinner)
+
+linkFun :: Int -> [a] -> [a]
+linkFun size = foldr (.) id (replicate size linkFunSwap)
+
+linkFunSwap :: [a] -> [a]
+linkFunSwap l = drop h l ++ take h l
+  where
+    h = length l `div` 2
+#+end_src
+
+\newpage
+
+* Future work and limitations
+
+There is little way to verify that the tournament structure generated is the one
+that is actually intended, other than to view it in the Journeyman-UI tool.
+Additionally, analysis is currently limited; the UI tool will tell you how many
+rounds a tournament has, but that is the extent that the information goes.
+
+Indeed, an aim of this project originally was to create a Tournament "Virtual
+Machine" (TVM) capable of statistical analysis of any arbitrary tournament
+structure. While a TVM is developed and capable of evaluating tournaments,
+including displaying their pure subset ahead of actually arriving at those
+sections, it does not have any simulation capability. This is mainly owing to a
+lack of time; in October I suffered a concussion and could not work on this
+project for some time.
+
+Implementing such a simulator should be a matter of connecting a TVM to a
+simulator that repeatedly reads pending matches and evaluates them according to
+a $P_\text{win}$ function such as that provided by the Elo rating system. At the
+conclusion of the tournament, compare the initial standings to the final
+standings and count the number of inversions; this then forms the basis for a
+metric of fairness known as rank preservation.
+
+Additionally, we can test the robustness of a tournament against certain forms
+of manipulation or error, such as mistakenly seeding a player too high or too
+low. Again by counting the number of inversions at the end of the tournament and
+comparing it to the number and extent of inversions in the beginning, we can
+create a metric for reliability or how well the tournament actually ranks
+players against each-other -- rather than simply replicating the input
+standings.
+
+\newpage
+
+\printbibliography
+
+* COMMENT A Library for Tournament Design
 ** Goals
 1. Easy to use
 2. Minimal number of primitives
@@ -660,8 +1248,7 @@ add a primitive to change the sorting method, round-robin tournaments are "pure"
 **** Piped
 **** Interactive
 
-
-* Tutorial
+* COMMENT Tutorial
 Each to have a short description, a visualisation of the generated sorting
 network, and the code required to describe them.
 ** Specification of Common Formats
@@ -681,15 +1268,11 @@ network, and the code required to describe them.
 *** Insertion sort
 *** Bitonic sort
 
-* Analysis
+* COMMENT Analysis
 ** Rank preservation
 Assign elo to players and use that to simulate match results. At the end of the
 tournament, compare expected (players sorted by elo) to actual. Use normal elo
-distribution.
+    distribution.
 
-* Availability of this library
+* COMMENT Availability of this library
 Link to online documentation, package, source repository, etc.
-
-* References
-
-#+print_bibliography:

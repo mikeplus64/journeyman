@@ -10,6 +10,66 @@ extra-source-files:
   LICENSE
   README.md
 
+description:
+  Journeyman is my undergraduate COMP4560 project, with the aim to
+  create an easy-to-use eDSL that can be used to create and analyse arbitrary
+  tournament structures; such as "common" ones like Single or Double
+  Elimination, or compositions like N groups of Single Elimination.
+  .
+  * Your entrypoint to the eDSL should be the "Tourney.Algebra" module.
+  .
+  * Your entrypoint to exploring what's possible with Journeyman should be
+  the journeyman-ui executable that comes bundled with this package.
+  .
+  * To create a special-purpose tournament VM, for instance, to simulate
+  a tournament structure under different conditions, see the "Tourney.VM"
+  module.
+  .
+  * Functions dealing merely with sorting networks or point-award based
+  sorting networks such as those supported by Journeyman can be found in
+  "Tourney.SortingNetwork"
+  .
+  Some example tournament structures are provided under the @ Tourney.Format.* @
+  module. Navigating to these and familiarising yourself with the source code via
+  the /Source/ links may be quite helpful in gaining an intuition for how
+  Journeyman works and what its capabilities are.
+  .
+  = Analogies between sorting networks and tournaments
+  .
+  A key observation of made at the outset of this project is that there is an
+  analogy between sorting networks and many tournament structures. Here, a sorting
+  network refers to a fixed schedule or "network" of comparisons between a fixed
+  set of objects. Each comparison has a fixed coordinate or /wire/ in the network,
+  and results in either the objects staying in the same position as they were (if
+  they were already in order with respect to eachother), or they exchange places
+  if not.
+  .
+  I call a sorting network "partial" if it does not determine a complete ordering
+  among players; for instance if out of 16 elements it determines the greatest 8
+  in order, but leaves the remaining 8 in two buckets of 4 items where only the
+  order of the buckets is known.
+  .
+  A Single Elimination tournament has a partial sorting network construction. This
+  is because at each round we can draw matches between the winners of the previous
+  round only; that is, those players that now occupy the "high" position of the
+  sorting network, after a single step of the network. At the same time, the
+  losers of each round are simply not given any further comparisons (i.e.,
+  matches) from the point that they were eliminated, and so remain ranked at
+  whatever point they were eliminated.
+  .
+  Similarly, we can also construct a Double-Elimination tournament by sorting
+  network, by creating matches between those players that lost in first round of
+  the "upper" bracket, and then alternating rounds that either accept new losers
+  from the previous upper bracket round into new matches in the lower bracket, or
+  that play off players who are in the lower bracket. Not all tournaments are
+  sorting networks however. For instance, a round robin tournament has no
+  sorting network equivalent, even though it has a fully-determined
+  schedule for \(n\) players. To get around this, we define a special primitive that
+  allows the method by which players exchange positions to be redefined; for
+  instance, in a round robin, the method is that players shall accumulate points
+  by winning matches, and then be ordered from most points to least.
+  .
+
 common shared
   ghc-options:
     -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns
@@ -112,10 +172,12 @@ common shared
 library
   import:          shared
   hs-source-dirs:  src
-  other-modules:   Prelude
-  exposed-modules:
+  other-modules:
     Data.Dependency
     Data.Tuple.Ordered
+    Prelude
+
+  exposed-modules:
     Tourney.Algebra
     Tourney.Algebra.Builder
     Tourney.Algebra.Unified
@@ -138,12 +200,8 @@ library
     Tourney.VM.Compile
     Tourney.VM.Interpret
 
-test-suite test
-  import:             shared
-  type:               exitcode-stdio-1.0
-  main-is:            Spec.hs
-  hs-source-dirs:     test
-  build-tool-depends: hspec-discover:hspec-discover
-  build-depends:
-    , hspec-discover
-    , journeyman
+executable journeyman-ui
+  import:         shared
+  build-depends:  journeyman
+  hs-source-dirs: app
+  main-is:        Main.hs

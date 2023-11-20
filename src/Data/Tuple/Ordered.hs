@@ -11,8 +11,6 @@ module Data.Tuple.Ordered (
 )
 where
 
-import Control.Lens
-
 data OrdPair a = LH !a !a
   deriving stock (Eq, Ord, Show, Foldable)
 

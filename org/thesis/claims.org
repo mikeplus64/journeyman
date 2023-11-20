@@ -1,10 +1,59 @@
 #+title: Claims
 
-* TODO Swiss
+* DONE Introduction
+** DONE What is the project?
+** DONE What is the motivation for starting the project?
+*** DONE What is my relevant background?
+** DONE Why are tournaments important?
+*** DONE Economics of tournaments
+** DONE Why is fairness of tournaments important?
+*** DONE Are existing tournaments fair?
 
-* TODO Static analysis
-** Length
-** Parallel games
+** DONE What is the contribution and scope of the project?
 
-* TODO ELO
-** Rematch likelihood
+* DONE Literature Review
+** DONE DSLs
+** DONE Tournaments
+** DONE Sorting networks
+
+* TODO Design and implementation
+** DONE What goals are there for the library?
+*** DONE Small number of primitives
+*** DONE <=> Ease of use
+*** DONE <=> Ease of analysis
+*** DONE Composability of tournaments to create novel new ones
+
+** DONE What process was undergone to create the final design?
+*** DONE What changed over the course of the project?
+
+** TODO What is the core of the library?
+*** DONE What capability does this design give?
+*** TODO What limitations are there?
+**** DONE Which tournaments are sorting networks, and what aren't?
+**** DONE How do we accommodate tournaments that are not sorting networks?
+***** DONE Are there tournaments that are static, but not sorting networks?
+
+** DONE What is the syntax of the eDSL?
+
+** DONE What are some examples of tournaments built using the eDSL?
+*** DONE Single elimination
+*** DONE Double elimination
+*** DONE Round-Robin
+
+** TODO How can tournaments built with the eDSL be ran?
+** TODO How can analysis of tournaments be done using this structure?
+*** TODO Pure subsets of tournaments
+
+* TODO Analysis
+** TODO How do tournament structures compare?
+*** TODO Resistance to false seeding / Elo preservation
+**** Give a tournament with N rank inversions in the initial seeding, see how many rank inversions remain after
+*** TODO Resource use / number of parallel games
+*** TODO Number of rank inversions
+*** TODO Rematch avoidance
+*** TODO Length
+*** Fairness
+*** Competitive Integrity
+*** Equal Rank Difference
+
+*** Equal Gap Seeding outside of a deterministic domain

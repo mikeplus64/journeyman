@@ -4,7 +4,8 @@ module Tourney.Algebra.Unified (
   -- * Base eDSL
 
   -- | The core primitives and syntax of the journeyman tournament eDSL are
-  -- defined here. Unified
+  -- defined here. For how these values can be transformed into a flattened
+  -- stream of rounds, see "Tourney.Stream"
   Tournament (..),
   Mod (..),
 
@@ -29,7 +30,6 @@ module Tourney.Algebra.Unified (
 ) where
 
 import Data.Generics.Labels ()
-import Data.Typeable (cast)
 import Text.Show qualified as Show
 import Tourney.Common
 import Tourney.Match
@@ -54,6 +54,7 @@ data Tournament :: Depth -> Type where
   -- has a depth 'TMany' which restricts what functions are able to manipulate
   -- it.
   Sequence :: (KnownDepth a, KnownDepth b) => Tournament a -> Tournament b -> Tournament TMany
+  -- | Sort the inner tournament by some sorting method
   Sort :: SortMethod -> Tournament t -> Tournament t
   -- | Depend on the player count to produce an inner tournament
   ByPlayerCount :: (PlayerCount -> Tournament t) -> Tournament t
@@ -90,7 +91,7 @@ instance Show (Tournament t) where
         )
       where
         standings8 = createInitialStandings 8
-    Modify m t -> Show.showParen True (Show.showString "Mod " . Show.showsPrec 9 t)
+    Modify _m t -> Show.showParen True (Show.showString "Mod " . Show.showsPrec 9 t)
     Sort s t -> Show.showParen True (Show.showString "Sort " . Show.showsPrec 9 s . Show.showString " " . Show.showsPrec 9 t)
 
 data Mod
@@ -146,9 +147,6 @@ overlay = foldr (+++) Empty
 -- | Sequence two tournaments, running them one after the other. See 'Sequence'.
 (***) :: forall a b. (KnownDepth a, KnownDepth b) => Tournament a -> Tournament b -> Tournament TMany
 (***) = curry \case
-  (Empty, Empty) -> Empty
-  (Empty, cast -> Just b) -> b
-  (cast -> Just a, Empty) -> a
   (LiftTOne a, LiftTOne b) -> a *** b
   (LiftTOne a, b) -> a *** b
   (a, LiftTOne b) -> a *** b
@@ -158,9 +156,3 @@ infixl 1 ***
 
 sequence :: (Foldable f, KnownDepth a) => f (Tournament a) -> Tournament TMany
 sequence = foldr (***) Empty
-
--- Merging "modified" tournaments
------------------------------------
-
-mergeMod :: Tournament ('TMod a) -> Tournament ('TMod a) -> Tournament ('TMod a)
-mergeMod = (+++)

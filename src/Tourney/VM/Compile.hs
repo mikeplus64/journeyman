@@ -116,17 +116,17 @@ emit :: Monad m => TourneyOp -> Compiler m ()
 emit o = Compiler \ret e -> S.yield o >> ret () e
 
 execCompiler :: Monad m => Compiler m a -> Env m -> S.StreamM m TourneyOp ()
-execCompiler (Compiler m) = m \_ _ -> pure ()
+execCompiler (Compiler m) = m (\_ _ -> pure ())
 
-debugExecCompiler :: Monad m => Compiler m a -> StreamEnv m -> Code
-debugExecCompiler m env =
+debugExecCompiler :: Tournament t -> Code
+debugExecCompiler t =
   S.pureVector
     ( execCompiler
-        m
+        (compile_ t)
         Env
-          { focus = env ^. #focus
+          { focus = Focus 0 8
           , sort = def
-          , streamEnv = env
+          , streamEnv = createStreamEnv @Identity 8
           }
     )
 

@@ -417,8 +417,6 @@ drawCode = do
 drawEvents :: UIElement
 drawEvents = do
   events <- view #rawEvents
-  let !len = V.length events
-  --  let !lastEvents = V.drop (max 0 (len - 15)) events
   pure $
     vBox
       [ case ev of
