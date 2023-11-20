@@ -958,6 +958,8 @@ tournaments by an initial Elo distribution of players.
 
 The key API relevant here, provided by the core VM module ~Tourney.VM~, is:
 
+\newpage
+
 #+BEGIN_SRC haskell
 -- | Create a 'VM' from a tournament and a fixed player count.
 setup :: Tournament t -> PlayerCount -> IO VM

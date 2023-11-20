@@ -1,4 +1,4 @@
-% Created 2023-11-20 Mon 15:01
+% Created 2023-11-20 Mon 15:02
 % Intended LaTeX compiler: pdflatex
 \documentclass[a4,11pt,twoside,final,hidelinks]{article}
 
@@ -99,7 +99,7 @@ to perform and visualise tournaments described within the eDSL.
 }
 
 \section{Introduction}
-\label{sec:org54e1303}
+\label{sec:org1a362fc}
 
 Tournament structures are used to determine a ranking of players in a game, such
 as a real-life sport or an eSport. Many different tournament structures are
@@ -126,7 +126,7 @@ into relevant topics, the software I have developed, and the results of using
 this project to perform analysis on a variety of tournament structures.
 
 \section{Acknowledgements}
-\label{sec:orgc1fed42}
+\label{sec:org6bc22b0}
 
 Much thanks is given to Ranald Clouston, who supervised this project through the
 year.
@@ -134,7 +134,7 @@ year.
 \newpage
 
 \section{Background and Motivation}
-\label{sec:orgd232713}
+\label{sec:org274d813}
 
 The economics of sports and eSports tournaments are staggering; in 2021 nearly
 \$200bn USD was spent on sports betting \autocite{sportsbetworldwide} alone. At
@@ -207,7 +207,7 @@ discussion of analysis of common tournament structures by the software library
 is included in this thesis.
 
 \subsection{\label{aims} Scope and aims of this project}
-\label{sec:org7669c40}
+\label{sec:org0686426}
 With this background in mind, these are the aims of the project:
 
 \begin{enumerate}
@@ -231,7 +231,7 @@ level of their sport.}
 \newpage
 
 \section{Definitions}
-\label{sec:orge8b802e}
+\label{sec:orgd8a2e46}
 
 As an aide to readers, the following glossary is provided. I specialise certain
 terms to have exactly one specific definition in order to avoid confusion and
@@ -285,7 +285,7 @@ be.)
 \newpage
 
 \section{Literature Review}
-\label{sec:org8dda884}
+\label{sec:orgee7cba4}
 
 Before proceeding to the design and implementation of this project, I will
 provide an overview of some of the relevant literature that informed how the
@@ -295,7 +295,7 @@ tournament design, and tournament fairness. Each sub-section here denotes a
 particular paper that was considered.
 
 \subsection{``Design Guidelines for Domain Specific Languages'' \citeauthor*{dsl-guidelines}\autocite{dsl-guidelines}}
-\label{sec:orga24680f}
+\label{sec:org110628d}
 
 This paper provides a list of guidelines to follow for the design of DSLs. I
 followed it as a rough guide used in the process of designing the Journeyman
@@ -347,7 +347,7 @@ tournament.
 \end{enumerate}
 
 \subsection{``Algebraic graphs with class (functional pearl)'' \citeauthor*{Mokhov2017Sep}\autocite{Mokhov2017Sep}}
-\label{sec:orgb04971f}
+\label{sec:org1c32fbf}
 
 This paper and the accompanying Haskell library \texttt{algebraic-graphs} largely largely
 inspired the design of the core \texttt{Tournament} data type that the Journeyman eDSL
@@ -365,7 +365,7 @@ of \texttt{Overlay} and \texttt{Connect} at will, into a ``flattened'' stream of
 information, see \hyperref[design]{\emph{Design}}.
 
 \subsection{``The structure, efficacy, and manipulation of Double Elimination tournaments'' \citeauthor*{double-elim-structure-efficacy-manipulation}\autocite{double-elim-structure-efficacy-manipulation}}
-\label{sec:org9184717}
+\label{sec:org6e6f61f}
 
 This paper provides information about Double Elimination tournaments in
 particular. Several important theorems are provided for their design - in
@@ -402,7 +402,7 @@ as much as possible can be constructed using \(\ceil{\log(R)}\) Link or Swap
 operations.
 
 \subsection{``Double Elimination Tournaments: Counting and Calculating'' \citeauthor*{double-elim-cc}\autocite{double-elim-cc}}
-\label{sec:org2a7a9c5}
+\label{sec:org5c7b3af}
 
 This paper provides broad information about the construction of Double
 Elimination tournaments. The efficacy of ``unbalanced'' Double Elimination
@@ -435,7 +435,7 @@ and manipulation of Double Elimination tournaments''
 \autocite{double-elim-structure-efficacy-manipulation}.
 
 \subsection{``Simulating competitiveness and precision in a tournament structure: a reaper tournament'' \citeauthor*{reaper}\autocite{reaper} and ``Reaper Tournament System'' \citeauthor*{reaper2017}\autocite{reaper2017}}
-\label{sec:org0b8418f}
+\label{sec:org0b207a4}
 This pair of papers describes a novel tournament structure coined ``Reaper
 tournaments''. \autocite{reaper2017} describes most of the results and
 \autocite{reaper} develops the knowledge of the Reaper tournament system further,
@@ -484,7 +484,7 @@ of Double Elimination tournaments in terms of \uline{RankCor}, with Reaper tourn
 also performing excellently, though doubling the number of matches required.
 
 \subsection{Description of the Reaper tournament structure algorithm}
-\label{sec:org851def1}
+\label{sec:org89ab704}
 I reproduce in my own words the algorithm for the Reaper tournament structure
 here.
 
@@ -539,7 +539,7 @@ needs to be able to ``respond'' to the results of matches in order to maintain a
 respect list and candidates list.
 
 \subsection{Reaper Elimination}
-\label{sec:orga99b8cc}
+\label{sec:org7b73803}
 A follow-up structure is proposed in the second paper \autocite{reaper2017} that
 develops the Reaper tournament structure to give it an upper bound on the number
 of matches required, and a static tree structure. Thus, it is likely a
@@ -547,7 +547,7 @@ tournament that could be expressed as a sorting network. It is shown that the
 number of matches required is \(O(N\log_2 N)\).
 
 \subsection{``Quantifying the unfairness of the 2018 FIFO World Cup qualification'' \citeauthor*{fifa-quant-unfairness}\autocite{fifa-quant-unfairness} and ``Risk of Collusion: Will Groups of 3 Ruin the FIFA World Cup?'' \citeauthor*{fifa-risk-of-collusion}\autocite{fifa-risk-of-collusion}}
-\label{sec:org22da607}
+\label{sec:orgfd243da}
 
 These papers look at real-world sports tournaments, namely the FIFA series of
 soccer/football tournaments. As these are huge events with massive prize pools
@@ -577,7 +577,7 @@ able to gain the points required to proceed on to the next stage of the
 tournament.
 
 \subsection{``Handling fairness issues in time-relaxed tournaments with availability constraints'' \citeauthor*{fairness-time-relaxed}\autocite{fairness-time-relaxed}}
-\label{sec:org03cd4e5}
+\label{sec:orga414b2b}
 
 This paper examines computational complexity of time-relaxed tournament game
 scheduling. That is, the problem of scheduling games where there is not a tight
@@ -590,7 +590,7 @@ this paper also concern scheduling, which is outside of the scope of this
 project.
 
 \subsection{``The impossibility of a perfect tournament'' \citeauthor*{perfect-impossible}\autocite{perfect-impossible}}
-\label{sec:org3ea9835}
+\label{sec:org1bd6336}
 
 This paper provides an important result that shows that their constructed
 fairness and balance metrics trade off against one-another, and elimination
@@ -620,7 +620,7 @@ closer games are assumed to be more exciting to watch than ``blow-out'' games,
 which I can validate from my own anecdotal experience.
 
 \subsection{``A new knockout tournament seeding method and its axiomatic justification'' \citeauthor*{knockout-seeding}\autocite{knockout-seeding}}
-\label{sec:orgf3dc4b8}
+\label{sec:orgcf955aa}
 
 This paper demonstrates the determining effect of seeding to Single Elimination
 tournament outcomes, and proposes an ``equal gap'' seeding method contrary to the
@@ -634,7 +634,7 @@ an open question, and may be a useful application of the Journeyman library to
 examine its effects.
 
 \subsection{``The efficacy of tournament designs'' \citeauthor*{tournament-efficacy}\autocite{tournament-efficacy}}
-\label{sec:org93f0dd1}
+\label{sec:org23d4d39}
 
 Efficacy of tournaments is analysed in terms of ranking inversions exhibited at
 the end of the tournament. A valuable result is that triple-elimination does not
@@ -653,14 +653,14 @@ likely has the greatest effect on result.
 \newpage
 
 \section{Design}
-\label{sec:orgd8950c1}
+\label{sec:orgfc3dc04}
 
 In this chapter I will explain the design of the software artefact developed. To
 understand the final design that was implemented, it's first worth examining
 what information lead to it.
 
 \subsection{Analogies between sorting networks and tournaments}
-\label{sec:org41e4af3}
+\label{sec:orgac8d5a1}
 
 A key observation of made at the outset of this project is that there is an
 analogy between sorting networks and many tournament structures. Here, a sorting
@@ -735,7 +735,7 @@ schedule in advance using known algorithms such as the Circle Method.
 
 \newpage
 \subsection{\label{design} A Type for Tournaments}
-\label{sec:orgbc60907}
+\label{sec:org82da4b1}
 
 The core type of the eDSL is described here. The primary feature of this type is
 its simplicity and ease of analysis. Tournaments in this library depend on two
@@ -923,7 +923,7 @@ upper triangle of such a matrix ever needs to be considered.
 
 \newpage
 \subsection{Final Definitions}
-\label{sec:org2be1aa5}
+\label{sec:org97cd9b9}
 I reproduce the final definition below:
 
 \begin{lstlisting}[language=haskell,numbers=none,basicstyle=\ttfamily\small]
@@ -979,7 +979,7 @@ breadth of \texttt{Num} and \texttt{Integral} operations available that \texttt{
 
 \newpage
 \subsection{The Journeyman eDSL: An accumulating continuation over \texttt{Tournament}}
-\label{sec:orga3c047f}
+\label{sec:orga26f126}
 
 The final eDSL is defined as a continuation-based accumulation monad over the
 original algebraic \texttt{Tournament} type. Since there are two main operations for
@@ -1012,7 +1012,7 @@ sequencing) is most appropriate.
 
 
 \subsection{A virtual machine for Tournaments}
-\label{sec:org09e6af8}
+\label{sec:org2515d74}
 
 To actually run a tournament, a virtual-machine, coined Tournament Virtual
 Machine (TVM), is constructed. The TVM connects a Tournament compiler, which \hyperref[compiler]{has
@@ -1032,6 +1032,8 @@ tournaments by an initial Elo distribution of players.
 
 The key API relevant here, provided by the core VM module \texttt{Tourney.VM}, is:
 
+\newpage
+
 \begin{lstlisting}[language=haskell,numbers=none]
 -- | Create a 'VM' from a tournament and a fixed player count.
 setup :: Tournament t -> PlayerCount -> IO VM
@@ -1047,7 +1049,7 @@ simulateByEloDistribution :: Vector Float -> VM -> IO (Vector Float)
 \end{lstlisting}
 
 \subsection{Tournament Interaction and Display}
-\label{sec:orgea7cdf3}
+\label{sec:org66523de}
 
 In order to inspect and interact with tournaments, a terminal-based UI is built.
 It enables the display and running of tournaments, and allows for inspection of
@@ -1059,11 +1061,11 @@ have already been included in this thesis.
 \newpage
 
 \section{Demonstration of the Journeyman eDSL}
-\label{sec:org3dec127}
+\label{sec:org12121fd}
 We shall now tour some tournament structure definitions I have created that use
 the Journeyman eDSL.
 \subsection{Round Robin and Group Stage Round Robins}
-\label{sec:org747b462}
+\label{sec:org7da6b48}
 The \emph{Circle Method} for round-robin scheduling is used here. The key point to
 note here is the position of the \texttt{points} function, which requests sorting by
 point awards for the matches within.
@@ -1096,7 +1098,7 @@ groupRoundRobin numGroups = divideInto numGroups roundRobin
 
 \newpage
 \subsection{Insertion Sort, and \emph{I Can't Believe It Can Sort}}
-\label{sec:org62cc41a}
+\label{sec:org2864b91}
 
 Three variations are provided here. The ``naiive'' variant of insertion sort here
 follows the folk imperative definition of the insertion sort algorithm; but this
@@ -1147,7 +1149,7 @@ iCan'tBelieveItCanSort = do
 
 \newpage
 \subsection{Single Elimination}
-\label{sec:org6b9de63}
+\label{sec:org64a2f17}
 
 Single Elimination tournaments turn out to be quite easy to represent in
 Journeyman, especially when compared to traditional binary-tree approaches,
@@ -1181,7 +1183,7 @@ tournaments that have a binary-tree structure.
 \newpage
 
 \subsection{Double Elimination}
-\label{sec:orgcef0c19}
+\label{sec:org32c0118}
 
 \begin{figure}[htbp]
 \centering
@@ -1264,7 +1266,7 @@ linkFunSwap l = drop h l ++ take h l
 
 
 \section{Future work and limitations}
-\label{sec:orgd47e5eb}
+\label{sec:orgc0e8f46}
 
 There is little way to verify that the tournament structure generated is the one
 that is actually intended, other than to view it in the Journeyman-UI tool.
@@ -1304,6 +1306,6 @@ place.
 \newpage
 
 \section{References}
-\label{sec:orge743b73}
+\label{sec:org2972096}
 \printbibliography[heading=none]
 \end{document}
