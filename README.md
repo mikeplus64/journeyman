@@ -3,6 +3,8 @@
 An eDSL for creating tournaments. Use it as a library in a project that uses
 tournaments.
 
+![Journeyman-UI screenshot](./docs/screenshot.png)
+
 # Documentation access
 
 - Core documentation is hosted at https://mikeplus64.github.io/journeyman

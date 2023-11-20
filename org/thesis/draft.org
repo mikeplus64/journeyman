@@ -965,9 +965,10 @@ setup :: Tournament t -> PlayerCount -> IO VM
 -- | Get a history of standings updates, by round, from a VM.
 getStandingsHistory :: VM -> IO (MapByRound Standings)
 
--- | Run a VM to completion, using the input Elo distribution to compute the win
--- probabilities of each player per match. A final Elo distribution is returned
--- which reflects changes in Elo that occured throughout the tournament.
+-- | Run a VM to completion, using the input Elo distribution
+-- to compute the win probabilities of each player per match.
+-- A final Elo distribution is returned which reflects changes
+-- in Elo that occured throughout the tournament.
 simulateByEloDistribution :: Vector Float -> VM -> IO (Vector Float)
 #+END_SRC
 

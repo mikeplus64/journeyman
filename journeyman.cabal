@@ -11,6 +11,8 @@ extra-source-files:
   README.md
 
 description:
+  <<https://mikeplus64.github.io/journeyman/screenshot.png>>
+  .
   Journeyman is my undergraduate COMP4560 project, with the aim to
   create an easy-to-use eDSL that can be used to create and analyse arbitrary
   tournament structures; such as "common" ones like Single or Double
