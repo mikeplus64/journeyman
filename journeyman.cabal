@@ -19,7 +19,11 @@ description:
   * Your entrypoint to the eDSL should be the "Tourney.Algebra" module.
   .
   * Your entrypoint to exploring what's possible with Journeyman should be
-  the journeyman-ui executable that comes bundled with this package.
+  the journeyman-ui executable that comes bundled with this package. It
+  uses an extensible tournament UI defined in "Tourney.UI.Main", but all
+  you as a user needs to do is extend the list of known tournaments you
+  pass to 'Tourney.UI.Main.createTourneyUI' with a tournament you create.
+  For an example of how to do this, see the executable in @ app/Main.hs @.
   .
   * To create a special-purpose tournament VM, for instance, to simulate
   a tournament structure under different conditions, see the "Tourney.VM"

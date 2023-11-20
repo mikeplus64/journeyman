@@ -21,11 +21,15 @@
 --
 -- These diagrams may help elucidate how this is possible:
 --
--- <https://mikeplus64.github.io/journeyman/ub1.png>
+-- <<https://mikeplus64.github.io/journeyman/ub1.png>>
 --
--- <https://mikeplus64.github.io/journeyman/ub2.png>
+-- <<https://mikeplus64.github.io/journeyman/ub2.png>>
 --
--- <https://mikeplus64.github.io/journeyman/ub3.png>
+-- <<https://mikeplus64.github.io/journeyman/ub3.png>>
+--
+-- Here, an unbalanced combination of overlays and interleaves is turned into a
+-- balanced sequence of overlays by successively re-balancing the tournament
+-- tree.
 module Tourney.Stream (
   -- * Compilation
 

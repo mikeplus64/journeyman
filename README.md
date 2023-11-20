@@ -16,6 +16,10 @@ You can set up a development environment with journeyman by using
 $ git clone git@github.com:mikeplus64/journeyman.git
 $ cd journeyman
 $ nix develop
+$ just repl
+  # Much loading and module compilation goes here :-)
+$ :l Tourney.UI.Main
+$ :main
 ```
 
 I have tested journeyman on Linux only, although macOS should work easily enough

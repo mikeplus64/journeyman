@@ -4,7 +4,7 @@
 
 {-# HLINT ignore "Avoid lambda" #-}
 
-module Tourney.UI.Main where
+module Tourney.UI.Main (createTourneyUI, defaultTournaments) where
 
 import Brick hiding (Max, Result, zoom)
 import Brick qualified
@@ -44,8 +44,8 @@ import Tourney.VM (VM)
 import Tourney.VM qualified as VM
 import Tourney.VM.Code (TourneyOp (..))
 
-knownTournaments :: [(Text, Tournament TMany)]
-knownTournaments =
+defaultTournaments :: [(Text, Tournament TMany)]
+defaultTournaments =
   [ ("Single Elimination", execSteps id singleElimination)
   , ("Double Elimination", execSteps id doubleElimination)
   , ("Round Robin", execSteps id roundRobin)
@@ -56,9 +56,6 @@ knownTournaments =
   , ("Insertion Sort", execSteps id insertionSort)
   , ("ICan'tBelieveItCanSort", execSteps id iCan'tBelieveItCanSort)
   ]
-
-knownTournamentsLen :: Int
-knownTournamentsLen = length knownTournaments
 
 data MenuForm = MenuForm
   { tournament :: !Int
@@ -71,6 +68,7 @@ data AppState = AppState
   , dialog :: Dialog DialogChoice AppResourceName
   , state :: !(Maybe TournamentState)
   , errors :: [Text]
+  , knownTournaments :: [(Text, Tournament TMany)]
   }
   deriving stock (Generic)
 
@@ -117,15 +115,16 @@ type UIElement = Reader TournamentState (Widget AppResourceName)
 
 data AppEvent deriving stock (Eq, Show, Ord)
 
-main :: IO AppState
-main =
+createTourneyUI :: [(Text, Tournament TMany)] -> IO AppState
+createTourneyUI knownTournaments =
   defaultMain
     app
     AppState
-      { menu = menuForm MenuForm{playerCount = "8", tournament = 0}
+      { menu = menuForm knownTournaments MenuForm{playerCount = "8", tournament = 0}
       , dialog = menuDialog
       , state = Nothing
       , errors = []
+      , knownTournaments
       }
   where
     app :: App AppState AppEvent AppResourceName
@@ -198,8 +197,11 @@ menuDialog =
     (Just (MenuEnter, [("Start", MenuEnter, DialogEnter)]))
     35
 
-menuForm :: MenuForm -> Form MenuForm AppEvent AppResourceName
-menuForm =
+menuForm
+  :: [(Text, Tournament TMany)]
+  -> MenuForm
+  -> Form MenuForm AppEvent AppResourceName
+menuForm knownTournaments =
   newForm
     [ (txt "Player count: " <+>)
         @@= editTextField #playerCount MenuPlayerCountItem (Just 1)
@@ -207,10 +209,12 @@ menuForm =
         @@= radioField
           #tournament
           [ (i, MenuTournamentItem i, knownTournaments ^?! ix i . _1)
-          | i <- [0 .. knownTournamentsLen - 1]
+          | i <- [0 .. len - 1]
           ]
     ]
     >>> setFormConcat (vBox >>> padAll 1)
+  where
+    len = length knownTournaments
 
 drawMenu :: Reader AppState (Widget AppResourceName)
 drawMenu = do
@@ -220,9 +224,10 @@ drawMenu = do
 
 beginTournament :: EventM AppResourceName AppState ()
 beginTournament = do
+  known <- use #knownTournaments
   mcount <- uses (#menu . to formState . #playerCount) (readEither @PlayerCount . toString)
-  tournIx <- use (#menu . to formState . #tournament)
-  let tournament = knownTournaments ^?! ix tournIx . _2
+  tournIx :: Int <- use (#menu . to formState . #tournament)
+  let tournament = known ^?! ix tournIx . _2
   case mcount of
     Left err -> #errors %= (err :)
     Right count -> do
@@ -387,9 +392,6 @@ drawMain = do
               ]
            ]
     )
-
-niceBorder :: Widget a -> Widget a
-niceBorder = joinBorders . withBorderStyle unicodeRounded . border
 
 drawCode :: UIElement
 drawCode = do
