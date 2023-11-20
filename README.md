@@ -5,7 +5,7 @@ tournaments.
 
 # Documentation access
 
-- API documentation is hosted at https://mikeplus64.github.io/journeyman
+- Core documentation is hosted at https://mikeplus64.github.io/journeyman
 - The thesis document is available at https://mikeplus64.github.io/journeyman/thesis.pdf
 
 # Development setup
