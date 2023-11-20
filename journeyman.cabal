@@ -27,7 +27,9 @@ description:
   .
   * To create a special-purpose tournament VM, for instance, to simulate
   a tournament structure under different conditions, see the "Tourney.VM"
-  module.
+  module. This module also provides functionality for gauging the
+  performance of a tournament structure by simulating it over a given
+  Elo rating distribution.
   .
   * Functions dealing merely with sorting networks or point-award based
   sorting networks such as those supported by Journeyman can be found in
@@ -154,11 +156,13 @@ common shared
     , kan-extensions
     , lens
     , mtl
+    , mwc-random
     , nonempty-zipper
     , palette
     , pretty-simple
     , primitive
     , PyF
+    , random
     , relude
     , semialign
     , smallcheck
@@ -177,6 +181,7 @@ library
   import:          shared
   hs-source-dirs:  src
   other-modules:
+    Data.Counting
     Data.Dependency
     Data.Tuple.Ordered
     Prelude
@@ -195,6 +200,7 @@ library
     Tourney.Format.Swiss
     Tourney.Match
     Tourney.Match.Matrix
+    Tourney.Prelude
     Tourney.SortingNetwork
     Tourney.Stream
     Tourney.UI.Main

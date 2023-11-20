@@ -5,6 +5,18 @@ module Tourney.VM (
   setup,
   loop,
 
+  -- ** Simulations
+
+  -- | These functions are intended for use in simulating outcomes of a
+  -- tournament, to e.g. gauge how well it performs in terms of its rank
+  -- preservation.
+  simulateWith,
+  simulateByEloDistribution,
+
+  -- *** Utilities for interpretting results of a simulation
+  inversions,
+  countInversions,
+
   -- ** Functions for interacting with a VM
   StepCodeEvent (..),
   StepContinue (..),
@@ -29,6 +41,7 @@ module Tourney.VM (
 ) where
 
 import Data.Vector qualified as V
+import System.Random.Stateful qualified as Random
 import Tourney.Algebra.Unified
 import Tourney.Common
 import Tourney.Match
@@ -139,6 +152,10 @@ getStandingsHistory :: VM -> IO (MapByRound StandingsUpdate)
 getStandingsHistory VM{vmIState = IStateVar var} =
   atomically (view #history <$> readTVar var)
 
+getLastStandings :: VM -> IO (Vector (Points, Player))
+getLastStandings VM{vmIState = IStateVar var} =
+  atomically (view (#history . traverseMax . #standings) <$> readTVar var)
+
 getPendingMatches :: VM -> IO (Vector Match)
 getPendingMatches VM{vmIState = IStateVar var} = atomically do
   IState{roundNo, matrix} <- readTVar var
@@ -154,3 +171,85 @@ getRoundNo VM{vmIState = IStateVar var} = view #roundNo <$> readTVarIO var
 
 --------------------------------------------------------------------------------
 -- Full Simulation of tournaments using a probabilistic match result function
+
+simulateWith :: MonadIO m => VM -> (Vector (Points, Player) -> Match -> m Result) -> m ()
+simulateWith vm getResult = go
+  where
+    go = do
+      lastEv <- V.lastM =<< liftIO (loop vm)
+      lastStandings <- liftIO (getLastStandings vm)
+      case lastEv of
+        NoCode -> pure ()
+        Stepped (NeedResults'Sorting roundNo matches) -> do
+          forM_ matches \match -> do
+            result <- getResult lastStandings match
+            liftIO (setMatchResult vm roundNo match result)
+          go
+        Stepped (NeedResults'EndRound roundNo matches) -> do
+          forM_ matches \match -> do
+            result <- getResult lastStandings match
+            liftIO (setMatchResult vm roundNo match result)
+          go
+        Stepped Continue{} -> error "impossible"
+
+-- Simulations using the Elo rating system
+----------------------------------------
+
+pattern ELO_K_FACTOR :: Float
+pattern ELO_K_FACTOR = 24
+
+eloExpectedOutcomes :: Float -> Float -> (Float, Float)
+eloExpectedOutcomes elo1 elo2 = (exp1, 1.0 - exp1)
+  where
+    !exp1 = 1.0 / (1 + 10.0 ** ((elo2 - elo1) / 400.0))
+
+--
+-- exp1 = 0.5*p_draw + win*expwin1
+-- exp2 = 0.5*p_draw + win*expwin2
+--
+-- but p_draw = 0.0
+--
+-- Since draws are not allowed, ignore exp2
+
+-- | Randomly guess a result of a match, using the input player Elo ratings to
+-- calculate their respective win probabilities.
+guessEloResult
+  :: (MonadIO m, Random.StatefulGen g m)
+  => TVar Float
+  -> TVar Float
+  -> g
+  -> m Result
+guessEloResult elo1Ref elo2Ref rgen = do
+  elo1 <- readTVarIO elo1Ref
+  elo2 <- readTVarIO elo2Ref
+  let (exp1, _exp2) = eloExpectedOutcomes elo1 elo2
+  -- Journeyman games/tournaments
+  outcome <- Random.uniformRM (0.0, 1.0) rgen
+  let (s1, s2) = if outcome <= exp1 then (1, 0) else (0, 1) :: (Int, Int)
+  atomically do
+    modifyTVar' elo1Ref (+ ELO_K_FACTOR * (realToFrac s1 - exp1))
+    modifyTVar' elo2Ref (+ ELO_K_FACTOR * (realToFrac s2 - exp1))
+  pure (Result (fromIntegral s1) (fromIntegral s2))
+
+simulateByEloDistribution :: Vector Float -> VM -> IO ()
+simulateByEloDistribution initialElos vm = do
+  elos <- atomically (V.mapM newTVar initialElos)
+  let getElo :: Player -> TVar Float
+      getElo p = elos ^?! ix (asInt p)
+  gen <- Random.newIOGenM =<< Random.newStdGen
+  simulateWith vm \lastStandings (Match a b) -> do
+    let !p1 = lastStandings ^?! ix (asInt a) . _2
+    let !p2 = lastStandings ^?! ix (asInt b) . _2
+    let !elo1 = getElo p1
+    let !elo2 = getElo p2
+    guessEloResult elo1 elo2 gen
+
+-- | Enumerate all the inversions of a vector
+inversions :: Ord a => Vector a -> Vector a
+inversions actuals = do
+  (i, x) <- V.indexed actuals
+  V.filter (< x) (V.drop i actuals)
+
+-- | Count how many inversions there are in a vector
+countInversions :: Ord a => Vector a -> Int
+countInversions = V.length . inversions

@@ -2,8 +2,8 @@
 
 module Main where
 
-import BasePrelude
 import Tourney.Algebra
+import Tourney.Prelude
 import Tourney.UI.Main qualified
 
 knownTournaments :: [(Text, Tournament TMany)]
