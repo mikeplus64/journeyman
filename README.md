@@ -24,6 +24,10 @@ $ just repl
 $ :set -iapp -isrc
 $ :l app/Main.hs
 $ :main
+  # Make changes here to app/Main.hs; to e.g., add a tournament structure
+  ^C
+$ :reload
+$ :main
 ```
 
 This provides a convenient entry-point to adding and inspecting existing
@@ -34,4 +38,19 @@ I have tested journeyman on Linux only, although macOS should work easily enough
 as well. On Windows, it may be easier to set up a Haskell environment through
 Windows Subsystem for Linux.
 
+## Setup without Nix
+
+If you rather not use Nix or Just, you can call use `cabal` directly. Journeyman
+was developed with GHC 9.4.7 and cabal-install version 3.10.1.0, and should be
+portable to most systems with those available.
+
+``` sh
+$ cd journeyman
+# Boot up a development REPL as in above
+$ cabal repl
+# Install a journeyman-ui binary to your $PATH
+$ cabal install
+# Build documentation
+$ cabal haddock
+```
 
