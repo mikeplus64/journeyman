@@ -231,9 +231,13 @@ guessEloResult elo1Ref elo2Ref rgen = do
     modifyTVar' elo2Ref (+ ELO_K_FACTOR * (realToFrac s2 - exp1))
   pure (Result (fromIntegral s1) (fromIntegral s2))
 
-simulateByEloDistribution :: Vector Float -> VM -> IO ()
+-- | Run a VM to completion, using the input Elo distribution to compute the win
+-- probabilities of each player per match. A final Elo distribution is returned
+-- which reflects changes in Elo that occured throughout the tournament.
+simulateByEloDistribution :: Vector Float -> VM -> IO (Vector Float)
 simulateByEloDistribution initialElos vm = do
-  elos <- atomically (V.mapM newTVar initialElos)
+  -- Probably I should use MutVar here, or simply a mutable vector
+  elos <- V.mapM newTVarIO initialElos
   let getElo :: Player -> TVar Float
       getElo p = elos ^?! ix (asInt p)
   gen <- Random.newIOGenM =<< Random.newStdGen
@@ -243,6 +247,7 @@ simulateByEloDistribution initialElos vm = do
     let !elo1 = getElo p1
     let !elo2 = getElo p2
     guessEloResult elo1 elo2 gen
+  V.generateM (V.length initialElos) (readTVarIO . getElo . Player)
 
 -- | Enumerate all the inversions of a vector
 inversions :: Ord a => Vector a -> Vector a

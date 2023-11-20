@@ -15,13 +15,12 @@ tournament structure type is inspired by work on algebraic graph representations
 in Haskell, and sorting networks, and enables composition in terms of either
 interleaving or sequencing. The core design balances between allowing arbitrary
 logic within a tournament structure and what static analysis can be achieved
-given such a structure. A software library is developed that, upon future work,
-can be capable of measuring characteristics such as length, fairness, resource
-use, and reliability, on arbitrary tournament structures. Analogies from
-tournaments to sorting networks are observed and common tournament structures
-are contrasted with sorting networks to see how viable they can be as tournament
-structures. A tool is also developed to perform and visualise tournaments
-described within the eDSL.
+given such a structure. A software library is developed that, provides the
+foundations for future work in measuring tournament characteristics such as
+reliability and fairness. Analogies from tournaments to sorting networks are
+observed and common tournament structures are contrasted with sorting networks
+to see how viable they can be as tournament structures. A tool is also developed
+to perform and visualise tournaments described within the eDSL.
 #+latex: \end{abstract}
 #+latex: \newpage
 
@@ -125,7 +124,7 @@ sportsman in his country.
 #+end_itquote
 
 With this in mind, it is worth asking how it is that players are ranked and
-evaluated against eachother. That is: Are the tournaments reliable - are the
+evaluated against each-other. That is: Are the tournaments reliable - are the
 results repeatable? Are they fair? How could we determine this? Indeed, examples
 exist of large real-world tournaments that were possibly unfair
 [cite:@fifa-quant-unfairness][cite:@fifa-risk-of-collusion] or where players
@@ -593,7 +592,7 @@ analogy between sorting networks and many tournament structures. Here, a sorting
 network refers to a fixed schedule or "network" of comparisons between a fixed
 set of objects. Each comparison has a fixed coordinate or /wire/ in the network,
 and results in either the objects staying in the same position as they were (if
-they were already in order with respect to eachother), or they exchange places
+they were already in order with respect to each-other), or they exchange places
 if not.
 
 I call a sorting network "partial" if it does not determine a complete ordering
@@ -834,13 +833,13 @@ values (i.e., matches, or rounds) that can also be popped off purely.
 Additionally, operators are defined for /aligning/ two streams of values
 together, which is how the operation in Figure [[fig:balance1]] is implemented.
 
-With this representation, compilation of tournaments can ultimately reduces them
-to a single stream of a very small set of commands, which become trivial to
-interpret: ~data Op = BEGIN_ROUND | END_ROUND | MATCH Match | PERFORM_SORTING
-Focus SortMethod~. The key detail is that an interpreter must not proceed past
-an ~END_ROUND~ or a ~PERFORM_SORTING~ until all the relevant matches have been
-completed[fn::For ~END_ROUND~, all matches are relevant. For ~PERFORM_SORTING~,
-only those matches under the ~Focus~ specified are.].
+<<compiler>> With this representation, compilation of tournaments can ultimately
+reduces them to a single stream of a very small set of commands, which become
+trivial to interpret: ~data Op = BEGIN_ROUND | END_ROUND | MATCH Match |
+PERFORM_SORTING Focus SortMethod~. The key detail is that an interpreter must not
+proceed past an ~END_ROUND~ or a ~PERFORM_SORTING~ until all the relevant matches
+have been completed[fn::For ~END_ROUND~, all matches are relevant. For
+~PERFORM_SORTING~, only those matches under the ~Focus~ specified are.].
 
 Another key implementation detail is that the ~Match~ constructor is guaranteed
 to always refer to different slots in the sorting network, and that the first
@@ -921,7 +920,6 @@ The key convenience gained here is to be able to syntactically invert the
 #+begin_src haskell
 -- | Retrieve the current player count
 getPlayerCount :: Merge t => Builder t () PlayerCount
-getPlayerCount = _
 
 -- | Retrieve the current standings
 --
@@ -929,7 +927,6 @@ getPlayerCount = _
 -- the tournament into two sections, as a tournament runner cannot
 -- continue past this point without first having the standings.
 getStandings :: Merge t => Builder t () Standings
-getStandings = _
 #+end_src
 
 As the full API largely is a consequence of the primitives outlined above, they
@@ -939,6 +936,40 @@ eDSL, see
 online documentation)}}}. Most functions here simply add something to the current
 ~Tournament~ accumulation, by whatever merging strategy (overlaying or
 sequencing) is most appropriate.
+
+
+** A virtual machine for Tournaments
+
+To actually run a tournament, a virtual-machine, coined Tournament Virtual
+Machine (TVM), is constructed. The TVM connects a Tournament compiler, which [[compiler][has
+been]] described already, and an interpreter over that small set of tournament
+"opcodes".
+
+The TVM is what powers the Journeyman-UI which has provided screenshots
+throughout this thesis, and is capable of evaluating tournaments, including
+displaying their pure subset ahead of actually arriving at those sections, as
+well as actually "peeking" into the future of an impure tournament (by supplying
+it with mock standings).
+
+The TVM also has simulation capability. This is a fairly simple combination of
+the main TVM loop and a function that, given a match, creates or retrieves its
+result somehow. Using this, I implement a tournament interpreter for evaluating
+tournaments by an initial Elo distribution of players.
+
+The key API relevant here, provided by the core VM module ~Tourney.VM~, is:
+
+#+BEGIN_SRC haskell
+-- | Create a 'VM' from a tournament and a fixed player count.
+setup :: Tournament t -> PlayerCount -> IO VM
+
+-- | Get a history of standings updates, by round, from a VM.
+getStandingsHistory :: VM -> IO (MapByRound Standings)
+
+-- | Run a VM to completion, using the input Elo distribution to compute the win
+-- probabilities of each player per match. A final Elo distribution is returned
+-- which reflects changes in Elo that occured throughout the tournament.
+simulateByEloDistribution :: Vector Float -> VM -> IO (Vector Float)
+#+END_SRC
 
 ** Tournament Interaction and Display
 
@@ -1139,6 +1170,7 @@ linkFunSwap l = drop h l ++ take h l
 
 \newpage
 
+
 * Future work and limitations
 
 There is little way to verify that the tournament structure generated is the one
@@ -1146,133 +1178,35 @@ that is actually intended, other than to view it in the Journeyman-UI tool.
 Additionally, analysis is currently limited; the UI tool will tell you how many
 rounds a tournament has, but that is the extent that the information goes.
 
-Indeed, an aim of this project originally was to create a Tournament "Virtual
-Machine" (TVM) capable of statistical analysis of any arbitrary tournament
-structure. While a TVM is developed and capable of evaluating tournaments,
-including displaying their pure subset ahead of actually arriving at those
-sections, it does not have any simulation capability. This is mainly owing to a
-lack of time; in October I suffered a concussion and could not work on this
-project for some time.
+The original aims of statistical analysis of arbitrary tournaments has not been
+met. While Journeyman does have the facility to do simulations by an Elo rating
+distribution, the work of collating results from such simulations has not been
+undertaken yet. Concretely, the future work to complete this aspect of the
+project would be:
 
-Implementing such a simulator should be a matter of connecting a TVM to a
-simulator that repeatedly reads pending matches and evaluates them according to
-a $P_\text{win}$ function such as that provided by the Elo rating system. At the
-conclusion of the tournament, compare the initial standings to the final
-standings and count the number of inversions; this then forms the basis for a
-metric of fairness known as rank preservation.
+1. Run the existing Elo-driven simulator repeatedly for a particular tournament
+   structure.
+2. Taking into account changes in Elo that happened throughout the course of the
+   tournament, tally the number of inversions over many runs. It may also be
+   interesting to compare the results when assuming a fixed Elo (i.e., absolute
+   certainty over players' relative skills) compared to allowing for the
+   self-correction mechanism of Elo to occur within a simulation.
+3. Do the same for other tournament structures, with the same initial Elo
+   distribution, and compare results.
 
-Additionally, we can test the robustness of a tournament against certain forms
-of manipulation or error, such as mistakenly seeding a player too high or too
-low. Again by counting the number of inversions at the end of the tournament and
-comparing it to the number and extent of inversions in the beginning, we can
-create a metric for reliability or how well the tournament actually ranks
-players against each-other -- rather than simply replicating the input
-standings.
+Unfortunately the related aim to compare common tournament structures with
+existing sorting algorithms is not completely met; it has proved to be too much
+work for me to complete over the 2 semesters. That said, the process for doing
+so would be identical to the above -- which is to say that it is a tantalisingly
+small amount of remaining work.
+
+Additionally, there are undoubtedly bugs in the implementation I have created. A
+more rigorous testing regime from the start may have been useful here, but due
+to the design of the eDSL being an invention created for under this project, it
+was not clear what the correct semantics /should/ be to be tested for in the first
+place.
 
 \newpage
 
-\printbibliography
-
-* COMMENT A Library for Tournament Design
-** Goals
-1. Easy to use
-2. Minimal number of primitives
-3. Allow for analysis
-   -> Statically analyse the pure subsets of a tournament
-4. Be able to express common tournament formats
-
-** Designs that were explored
-- Indexing of triangular numbers
-  + A round-robin schedule has a triangular number of games. All rounds of all
-    tournaments are some subset of a round-robin schedule. So you could probably
-    express tournaments as an index into this domain; but how do you decide
-    those indices? You probably end up needing or wanting an eDSL anyway to get
-    those.
-- Match lists
-  + Just use ~List (List Match)~. What tournaments can't be expresed like this?
-- Steps + Step builders
-- Limitations leading to final design
-
-** A type for Tournaments
-Algebraic graphs primer / credit to the idea
-
-*** Tournament primitives
-- Type-encoded tournament depth
-- Overlays
-  + Meaning of at single round level
-  + Meaning of at rounds level
-- Sequences
-  + Meaning of at rounds level
-- Focuses
-  + Meaning of at single round level
-  + Meaning of at the rounds level
-- Sort methods
-  + Meaning of at single round level
-  + Meaning of at rounds level
-
-** A monad for constructing a Tournament
-List-monad for accumulating tournaments
-- "Inverting" the Tournament type with continuations, avoiding lambdas
-- Is it a law-abiding Monad?
-
-** Compilation into sorting network-like structures
-
-*** Optionally-dependent streams of matches
-We have streams of matches that _can_ depend on an outside monad like IO to get
-match results, but they can also run completely purely. They can be inspected
-and ran without going through IO to say whether they are pure or not; the pure
-"prefix" of the tournament can then be returned, along with the impure "suffix".
-
-*** An instruction set for tournaments
-
-*** Why are some tournaments not sorting networks?
-Normal vs point-award sorting networks. SE/DE are sorting networks, they have a
-static description using matches where the winner takes the high position in the
-sorting network. But round-robin schedules are also static descriptions, yet
-they are not sorting networks; any "upsets" in the round-robin schedule would
-cause it to perform a different tournament when expressed as a swapping sorting
-network. I.e. it needs the players to only exchange positions after all matches
-are complete. Since we are still able to inspect round robin tournaments
-statically, whether or not a tournament is a normal sorting network is not a
-good litmus test.
-
-Call "pure" tournaments those which have a static description that do not depend
-on the standings of the tournament for all matches to be output. Call "impure"
-ones tournaments that require standings to know all the matches. Since we can
-add a primitive to change the sorting method, round-robin tournaments are "pure".
-
-** Simulators of tournaments
-*** Pure simulator
-*** Statistical simulator
-*** IO simulator
-**** Piped
-**** Interactive
-
-* COMMENT Tutorial
-Each to have a short description, a visualisation of the generated sorting
-network, and the code required to describe them.
-** Specification of Common Formats
-*** Single and Double Elimination
-- "Slaughter" seeding
-*** Round Robin
-**** Round robin using standings
-**** Sorting methods
-*** Swiss-style
-
-** Common Compositions
-*** Groups of N
-*** Groups of N, then combined back again
-*** Accept only the top N players of the previous sub-tournament
-
-** Sorts
-*** Insertion sort
-*** Bitonic sort
-
-* COMMENT Analysis
-** Rank preservation
-Assign elo to players and use that to simulate match results. At the end of the
-tournament, compare expected (players sorted by elo) to actual. Use normal elo
-    distribution.
-
-* COMMENT Availability of this library
-Link to online documentation, package, source repository, etc.
+* References
+\printbibliography[heading=none]

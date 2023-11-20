@@ -3,9 +3,10 @@
 An eDSL for creating tournaments. Use it as a library in a project that uses
 tournaments.
 
-# API documentation access
+# Documentation access
 
-API documentation is hosted at https://mikeplus64.github.io/journeyman
+- API documentation is hosted at https://mikeplus64.github.io/journeyman
+- The thesis document is available at https://mikeplus64.github.io/journeyman/thesis.pdf
 
 # Development setup
 
@@ -30,3 +31,5 @@ tournament format you declare
 I have tested journeyman on Linux only, although macOS should work easily enough
 as well. On Windows, it may be easier to set up a Haskell environment through
 Windows Subsystem for Linux.
+
+
